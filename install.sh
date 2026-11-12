@@ -14,14 +14,15 @@ show_usage() {
     echo ""
     echo "Options:"
     echo "  --link-only    Symlink bin/acer & bin/cutcharge to /usr/local/bin (default)"
-    echo "  --configs      Also install system configs (nbfc, modprobe, modules-load, systemd)"
+    echo "  --with-web     Symlink CLI + install & build Next.js Web GUI via Bun"
+    echo "  --configs      Install CLI symlinks + system configs (nbfc, modprobe, modules-load, systemd)"
     echo "  --check        Check required dependencies & kernel modules"
     echo "  -h, --help     Show this help message"
 }
 
 check_deps() {
     echo -e "${CYAN}Checking dependencies & kernel modules...${RESET}"
-    local deps=(bash python3 git gh nbfc envycontrol switcherooctl)
+    local deps=(bash python3 git gh nbfc envycontrol switcherooctl bun)
     for cmd in "${deps[@]}"; do
         if command -v "$cmd" &>/dev/null; then
             echo -e "  ${GREEN}✓${RESET} $cmd ($(command -v "$cmd"))"
@@ -90,9 +91,24 @@ install_configs() {
     echo "  sudo systemctl enable --now nbfc_service switcheroo-control acer-rgb turbo-fan"
 }
 
+install_web() {
+    if ! command -v bun &>/dev/null; then
+        echo -e "${RED}✗ Bun is required for the Web GUI. Install Bun first: https://bun.sh${RESET}"
+        exit 1
+    fi
+    echo -e "\n${YELLOW}Installing & building Next.js Web GUI with Bun...${RESET}"
+    (cd "$REPO_DIR/web" && bun install && bun run build)
+    echo -e "${GREEN}✓ Web GUI ready! Run 'acer gui' to launch http://localhost:3456${RESET}"
+}
+
 case "${1:-}" in
     --link-only|"")
         install_links
+        check_deps
+        ;;
+    --with-web)
+        install_links
+        install_web
         check_deps
         ;;
     --configs)

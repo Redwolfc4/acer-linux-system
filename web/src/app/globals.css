@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background-color: #07090f;
+  color: #e6edf7;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overflow-x: hidden;
+}
+
+@keyframes fan-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes rgb-breath {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes rgb-neon {
+  0% {
+    filter: hue-rotate(0deg) saturate(1.4);
+  }
+  100% {
+    filter: hue-rotate(360deg) saturate(1.4);
+  }
+}
+
+@keyframes rgb-wave {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.animate-fan-spin {
+  animation-name: fan-spin;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.animate-rgb-breath {
+  animation-name: rgb-breath;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.animate-rgb-neon {
+  animation-name: rgb-neon;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+

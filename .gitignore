@@ -2,6 +2,13 @@
 configs/accounts.conf
 .keyboard_cache
 
+# Next.js / Bun Web GUI
+web/node_modules/
+web/.next/
+web/out/
+web/next-env.d.ts
+web/*.tsbuildinfo
+
 # Build artifacts & kernel objects if built locally
 *.o
 *.ko
