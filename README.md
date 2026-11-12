@@ -168,3 +168,4 @@ sudo cutcharge status # Show current charge limit state
 - Fan control powered by [nbfc-linux](https://github.com/nbfc-linux/nbfc-linux) and GPU switching via [envycontrol](https://github.com/bayasdev/envycontrol)
 
 Licensed under **GNU General Public License v3.0** — see [LICENSE](LICENSE).
+
