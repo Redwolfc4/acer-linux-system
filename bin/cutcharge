@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+
+SYSFS_PATH="/sys/bus/wmi/drivers/acer-wmi-battery/health_mode"
+
+if [ ! -f "$SYSFS_PATH" ]; then
+    modprobe acer_wmi_battery 2>/dev/null
+fi
+
+case "$1" in
+    on|enable|80)
+        if [ -f "$SYSFS_PATH" ]; then
+            echo 1 > "$SYSFS_PATH"
+            echo "✅ Cut-charge AKTIF (Baterai dibatasi maks 80%)"
+        else
+            echo "❌ Driver acer_wmi_battery tidak ditemukan."
+            exit 1
+        fi
+        ;;
+    off|disable|100)
+        if [ -f "$SYSFS_PATH" ]; then
+            echo 0 > "$SYSFS_PATH"
+            echo "⚡ Cut-charge NONAKTIF (Baterai mengisi sampai 100%)"
+        else
+            echo "❌ Driver acer_wmi_battery tidak ditemukan."
+            exit 1
+        fi
+        ;;
+    status)
+        if [ -f "$SYSFS_PATH" ]; then
+            val=$(cat "$SYSFS_PATH")
+            if [ "$val" -eq 1 ]; then
+                echo "Status: ON (Limit 80%)"
+            else
+                echo "Status: OFF (Full 100%)"
+            fi
+        else
+            echo "❌ Driver acer_wmi_battery tidak terdeteksi."
+        fi
+        ;;
+    *)
+        echo "Penggunaan: sudo cutcharge [on|off|status]"
+        exit 1
+        ;;
+esac

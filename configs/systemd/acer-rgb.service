@@ -1,0 +1,13 @@
+[Unit]
+Description=Acer Nitro RGB keyboard backlight
+After=local-fs.target
+Wants=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do [ -e /dev/acer-gkbbl-0 ] && exit 0; sleep 1; done; exit 1'
+ExecStart=/usr/bin/python3 /usr/local/bin/facer_rgb.py -m 3 -s 1 -b 100 -d 2
+
+[Install]
+WantedBy=multi-user.target

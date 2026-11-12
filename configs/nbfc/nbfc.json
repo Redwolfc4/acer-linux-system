@@ -1,0 +1,12 @@
+
+{
+   "SelectedConfigId": "Acer Nitro AN517-41",
+   "FanTemperatureSources": [
+      {
+         "FanIndex": 1,
+         "Sensors": [
+            "amdgpu"
+         ]
+      }
+   ]
+}

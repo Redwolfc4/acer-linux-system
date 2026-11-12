@@ -1,0 +1,19 @@
+# Local user configuration (may contain personal emails/usernames)
+configs/accounts.conf
+.keyboard_cache
+
+# Build artifacts & kernel objects if built locally
+*.o
+*.ko
+*.mod
+*.mod.c
+*.mod.o
+*.cmd
+modules.order
+Module.symvers
+
+# OS / Editor files
+.DS_Store
+*.bak
+*.swp
+*~
