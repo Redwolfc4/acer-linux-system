@@ -23,7 +23,7 @@ export default function DashboardPage() {
         onRefresh={() => telemetryQuery.refetch()}
       />
 
-      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
+      <main className="mx-auto space-y-6 px-4 py-6 sm:px-6">
         {telemetryQuery.isError && (
           <div className="rounded-xl border border-rose-300 bg-rose-50 p-4 text-xs text-rose-800 shadow-xs dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-200">
             Gagal membaca telemetry hardware:{" "}

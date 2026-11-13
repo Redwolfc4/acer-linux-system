@@ -4,6 +4,7 @@ import {
   BatteryCharging,
   Clock,
   Cpu,
+  Loader2,
   Monitor,
   RefreshCw,
   ShieldCheck,
@@ -365,9 +366,19 @@ export function BatteryAndGpuPanel({ telemetry }: BatteryAndGpuPanelProps) {
           </div>
         )}
 
+        {gpuMutation.isPending && (
+          <div className="mt-3 flex items-center gap-2.5 rounded-xl border border-blue-300 bg-blue-50 px-3 py-2.5 text-xs text-blue-800 shadow-xs dark:border-blue-500/50 dark:bg-blue-950/40 dark:text-blue-200">
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-blue-600 dark:text-blue-400" />
+            <span>
+              Mengganti mode GPU… Rebuilding initramfs, harap tunggu <strong>~30–60 detik</strong>. Jangan tutup halaman ini.
+            </span>
+          </div>
+        )}
+
         <div className="mt-4 space-y-2.5">
           {GPU_MODES.map((item) => {
             const isActive = gpu?.currentMode?.toLowerCase() === item.mode;
+            const isSwitching = gpuMutation.isPending && gpuMutation.variables?.mode === item.mode;
             return (
               <button
                 key={item.mode}
@@ -386,15 +397,22 @@ export function BatteryAndGpuPanel({ telemetry }: BatteryAndGpuPanelProps) {
                 } disabled:opacity-60`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-slate-900 dark:text-white">{item.title}</span>
+                  <span className="flex items-center gap-1.5 text-sm font-bold text-slate-900 dark:text-white">
+                    {isSwitching && (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500 dark:text-blue-400" />
+                    )}
+                    {item.title}
+                  </span>
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                      isActive
-                        ? "bg-cyan-100 text-cyan-800 font-semibold dark:bg-cyan-400/20 dark:text-cyan-200"
-                        : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                      isSwitching
+                        ? "bg-blue-100 text-blue-800 dark:bg-blue-400/20 dark:text-blue-200"
+                        : isActive
+                          ? "bg-cyan-100 text-cyan-800 font-semibold dark:bg-cyan-400/20 dark:text-cyan-200"
+                          : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
                     }`}
                   >
-                    {isActive ? "Aktif" : item.badge}
+                    {isSwitching ? "Mengganti…" : isActive ? "Aktif" : item.badge}
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{item.subtitle}</p>

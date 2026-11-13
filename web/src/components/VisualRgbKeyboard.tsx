@@ -203,8 +203,8 @@ export function VisualRgbKeyboard() {
           selectedZone: lastActive.zone ?? "all",
           zoneColors: lastActive.zoneColors
             ? (Object.fromEntries(
-                lastActive.zoneColors.map((zc) => [zc.zone, rgbToHex(zc.r, zc.g, zc.b)])
-              ) as Record<1 | 2 | 3 | 4, string>)
+              lastActive.zoneColors.map((zc) => [zc.zone, rgbToHex(zc.r, zc.g, zc.b)])
+            ) as Record<1 | 2 | 3 | 4, string>)
             : undefined,
         });
       }
@@ -334,11 +334,10 @@ export function VisualRgbKeyboard() {
 
         <div className="flex items-center gap-2">
           <span
-            className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${
-              profilesQuery.data?.devicePresent
+            className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${profilesQuery.data?.devicePresent
                 ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300"
                 : "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
-            }`}
+              }`}
           >
             {profilesQuery.data?.devicePresent
               ? "/dev/acer-gkbbl-0 Aktif"
@@ -349,11 +348,10 @@ export function VisualRgbKeyboard() {
             type="button"
             disabled={rgbMutation.isPending}
             onClick={handleTogglePower}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-2xs transition disabled:opacity-50 ${
-              isOff
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-2xs transition disabled:opacity-50 ${isOff
                 ? "border-emerald-400 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 ring-1 ring-emerald-300/60 dark:border-emerald-500/50 dark:bg-emerald-500/15 dark:text-emerald-200 dark:hover:bg-emerald-500/25 dark:ring-emerald-400/40 dark:shadow-emerald-500/10"
                 : "border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200 dark:hover:bg-rose-500/20"
-            }`}
+              }`}
             title={
               isOff
                 ? "Nyalakan lampu dan kembalikan pengaturan sebelumnya"
@@ -361,9 +359,8 @@ export function VisualRgbKeyboard() {
             }
           >
             <Power
-              className={`h-3.5 w-3.5 ${
-                isOff ? "text-emerald-600 dark:text-emerald-400 animate-pulse" : "text-rose-600 dark:text-rose-300"
-              }`}
+              className={`h-3.5 w-3.5 ${isOff ? "text-emerald-600 dark:text-emerald-400 animate-pulse" : "text-rose-600 dark:text-rose-300"
+                }`}
             />
             {isOff ? "Nyalakan Lampu" : "Matikan Lampu"}
           </button>
@@ -378,11 +375,10 @@ export function VisualRgbKeyboard() {
             <button
               type="button"
               onClick={() => setSelectedZone("all")}
-              className={`rounded-md px-2.5 py-1 font-semibold transition shadow-2xs ${
-                selectedZone === "all"
+              className={`rounded-md px-2.5 py-1 font-semibold transition shadow-2xs ${selectedZone === "all"
                   ? "bg-purple-100 text-purple-900 ring-1 ring-purple-400 dark:bg-purple-500/25 dark:text-purple-200 dark:ring-purple-400/60"
                   : "border border-slate-200 bg-white text-slate-600 hover:text-slate-900 dark:border-transparent dark:bg-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
-              }`}
+                }`}
             >
               Semua Zona
             </button>
@@ -391,11 +387,10 @@ export function VisualRgbKeyboard() {
                 key={z}
                 type="button"
                 onClick={() => setSelectedZone(z)}
-                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-semibold transition shadow-2xs ${
-                  selectedZone === z
+                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-semibold transition shadow-2xs ${selectedZone === z
                     ? "bg-white text-slate-900 ring-1 ring-slate-400 dark:bg-slate-800 dark:text-white dark:ring-white/50"
                     : "border border-slate-200 bg-white text-slate-600 hover:text-slate-900 dark:border-transparent dark:bg-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
-                }`}
+                  }`}
               >
                 <span
                   className="h-2.5 w-2.5 rounded-full"
@@ -418,9 +413,8 @@ export function VisualRgbKeyboard() {
 
         {/* Keycap Chassis */}
         <div
-          className={`overflow-x-auto rounded-xl border border-slate-300/90 bg-slate-200/90 p-3 shadow-inner dark:border-slate-800/90 dark:bg-slate-950/90 ${
-            !isOff && rgbMode === "neon" ? "animate-rgb-neon" : ""
-          } ${!isOff && rgbMode === "breath" ? "animate-rgb-breath" : ""}`}
+          className={`overflow-x-auto rounded-xl border border-slate-300/90 bg-slate-200/90 p-3 shadow-inner dark:border-slate-800/90 dark:bg-slate-950/90 ${!isOff && rgbMode === "neon" ? "animate-rgb-neon" : ""
+            } ${!isOff && rgbMode === "breath" ? "animate-rgb-breath" : ""}`}
           style={{
             animationDuration:
               rgbMode === "neon" || rgbMode === "breath"
@@ -454,23 +448,39 @@ export function VisualRgbKeyboard() {
                       ? `0 0 ${Math.round(8 * opacityFactor)}px ${zoneHex}66, inset 0 -2px 0 ${zoneHex}99`
                       : `0 0 ${Math.round(8 * opacityFactor)}px ${zoneHex}55, inset 0 -2px 0 ${zoneHex}88`;
 
+                  const isDimmed = selectedZone !== "all" && !isZoneSelected;
+                  const isHighlighted = selectedZone !== "all" && isZoneSelected;
+
                   return (
                     <button
                       key={`${rIdx}-${kIdx}`}
                       type="button"
                       onClick={() => setSelectedZone(keyDef.zone)}
                       title={`Zone ${keyDef.zone}: ${zoneColors[keyDef.zone]}`}
-                      className={`${keyDef.span ?? "col-span-1"} flex h-8 items-center justify-center rounded-md border text-[10px] font-bold tracking-tight transition hover:scale-[1.03] ${
-                        isZoneSelected
-                          ? "border-slate-500 shadow-2xs dark:border-slate-600/80"
-                          : "border-slate-300 opacity-70 dark:border-slate-800/70 dark:opacity-60"
+                      className={`${keyDef.span ?? "col-span-1"} flex h-8 items-center justify-center rounded-md border text-[10px] font-bold tracking-tight transition-all duration-200 hover:scale-[1.03] ${
+                        isHighlighted
+                          ? "ring-1 ring-white/30 dark:ring-white/40"
+                          : ""
                       }`}
                       style={{
                         backgroundColor: keyBg,
                         color: keyTextColor,
-                        borderColor: keyBorder,
-                        boxShadow: keyShadow,
-                        opacity: isOff ? 0.5 : 0.5 + 0.5 * (rgbBrightness / 100),
+                        borderColor: isDimmed
+                          ? (isLight ? "#cbd5e1" : `${zoneHex}33`)
+                          : keyBorder,
+                        boxShadow: isDimmed
+                          ? "none"
+                          : isHighlighted
+                            ? isLight
+                              ? `0 0 ${Math.round(12 * opacityFactor)}px ${zoneHex}99, inset 0 -2px 0 ${zoneHex}`
+                              : `0 0 ${Math.round(14 * opacityFactor)}px ${zoneHex}88, inset 0 -2px 0 ${zoneHex}`
+                            : keyShadow,
+                        opacity: isOff
+                          ? 0.5
+                          : isDimmed
+                            ? 0.38
+                            : 0.6 + 0.4 * (rgbBrightness / 100),
+                        filter: isDimmed ? "saturate(0.7)" : undefined,
                       }}
                     >
                       {keyDef.label}
@@ -503,11 +513,10 @@ export function VisualRgbKeyboard() {
                     );
                   }
                 }}
-                className={`rounded-lg border px-2.5 py-2 text-xs font-semibold shadow-2xs transition ${
-                  rgbMode === m.id
+                className={`rounded-lg border px-2.5 py-2 text-xs font-semibold shadow-2xs transition ${rgbMode === m.id
                     ? "border-purple-400 bg-purple-100 text-purple-900 font-bold dark:border-purple-400/70 dark:bg-purple-500/20 dark:text-purple-200"
                     : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900/90 dark:text-slate-300 dark:hover:border-slate-700"
-                }`}
+                  }`}
               >
                 {m.label}
               </button>
@@ -562,22 +571,20 @@ export function VisualRgbKeyboard() {
                 <button
                   type="button"
                   onClick={() => setRgbDirection(2)}
-                  className={`rounded py-1 font-semibold transition ${
-                    rgbDirection === 2
+                  className={`rounded py-1 font-semibold transition ${rgbDirection === 2
                       ? "bg-purple-100 text-purple-900 dark:bg-purple-500/25 dark:text-purple-200"
                       : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
-                  }`}
+                    }`}
                 >
                   L → R
                 </button>
                 <button
                   type="button"
                   onClick={() => setRgbDirection(1)}
-                  className={`rounded py-1 font-semibold transition ${
-                    rgbDirection === 1
+                  className={`rounded py-1 font-semibold transition ${rgbDirection === 1
                       ? "bg-purple-100 text-purple-900 dark:bg-purple-500/25 dark:text-purple-200"
                       : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
-                  }`}
+                    }`}
                 >
                   R → L
                 </button>

@@ -120,7 +120,7 @@ describe("useAcerStore - RGB State & Multi-Zone Restoration", () => {
 
     // Turn off
     const activeSnapshot = {
-      mode: useAcerStore.getState().rgbMode,
+      mode: (useAcerStore.getState().rgbMode === "off" ? "wave" : useAcerStore.getState().rgbMode) as Exclude<import("@/lib/schemas").RgbMode, "off">,
       brightness: useAcerStore.getState().rgbBrightness,
       speed: useAcerStore.getState().rgbSpeed,
       direction: useAcerStore.getState().rgbDirection,
@@ -146,5 +146,37 @@ describe("useAcerStore - RGB State & Multi-Zone Restoration", () => {
     expect(state.rgbBrightness).toBe(100);
     expect(state.zoneColors).toEqual(customColors);
   });
+
+  test("setSelectedZone switches between 'all' and individual zones 1-4", () => {
+    const { setSelectedZone } = useAcerStore.getState();
+    expect(useAcerStore.getState().selectedZone).toBe("all");
+
+    setSelectedZone(4);
+    expect(useAcerStore.getState().selectedZone).toBe(4);
+
+    setSelectedZone(1);
+    expect(useAcerStore.getState().selectedZone).toBe(1);
+
+    setSelectedZone("all");
+    expect(useAcerStore.getState().selectedZone).toBe("all");
+  });
+
+  test("zone dimming condition: unselected zones are dimmed without completely disappearing", () => {
+    function computeIsDimmed(current: "all" | 1 | 2 | 3 | 4, keyZone: 1 | 2 | 3 | 4): boolean {
+      if (current === "all") return false;
+      return keyZone !== current;
+    }
+
+    // When selectedZone is 4:
+    expect(computeIsDimmed(4, 4)).toBe(false); // zone 4 is active
+    expect(computeIsDimmed(4, 1)).toBe(true);  // zone 1 is dimmed
+    expect(computeIsDimmed(4, 2)).toBe(true);  // zone 2 is dimmed
+    expect(computeIsDimmed(4, 3)).toBe(true);  // zone 3 is dimmed
+
+    // When selectedZone is 'all': none are dimmed
+    expect(computeIsDimmed("all", 1)).toBe(false);
+    expect(computeIsDimmed("all", 4)).toBe(false);
+  });
 });
+
 

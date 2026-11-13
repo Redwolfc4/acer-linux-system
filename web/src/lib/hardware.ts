@@ -754,7 +754,7 @@ export async function applyRgb(input: RgbControlRequest): Promise<void> {
       : existingState?.zoneColors && existingState.zoneColors.length > 0
         ? existingState.zoneColors
         : existingState?.lastActiveConfig?.zoneColors &&
-            existingState.lastActiveConfig.zoneColors.length > 0
+          existingState.lastActiveConfig.zoneColors.length > 0
           ? existingState.lastActiveConfig.zoneColors
           : defaultZoneColors;
 
@@ -775,19 +775,19 @@ export async function applyRgb(input: RgbControlRequest): Promise<void> {
     const lastActiveConfig: RgbControlRequest =
       existingState?.lastActiveConfig && existingState.lastActiveConfig.mode !== "off"
         ? {
-            ...existingState.lastActiveConfig,
-            zoneColors: existingState.lastActiveConfig.zoneColors ?? resolvedZoneColors,
-          }
+          ...existingState.lastActiveConfig,
+          zoneColors: existingState.lastActiveConfig.zoneColors ?? resolvedZoneColors,
+        }
         : existingState && existingState.mode !== "off" && existingState.brightness > 0
           ? {
-              mode: existingState.mode,
-              zone: existingState.zone,
-              speed: existingState.speed,
-              brightness: existingState.brightness,
-              direction: existingState.direction,
-              color: existingState.color,
-              zoneColors: resolvedZoneColors,
-            }
+            mode: existingState.mode,
+            zone: existingState.zone,
+            speed: existingState.speed,
+            brightness: existingState.brightness,
+            direction: existingState.direction,
+            color: existingState.color,
+            zoneColors: resolvedZoneColors,
+          }
           : fallbackActive;
 
     saveLastRgbState({
@@ -1082,7 +1082,8 @@ export async function controlBattery(input: BatteryControlRequest): Promise<void
 }
 
 export async function controlGpu(input: GpuControlRequest): Promise<void> {
-  const res = await runSudo(["envycontrol", "-s", input.mode], 15000);
+  // envycontrol -s <mode> membutuhkan waktu ~30-60 detik karena rebuild initramfs
+  const res = await runSudo(["envycontrol", "-s", input.mode], 90_000);
   if (!res.ok) {
     throw new Error(res.stderr || `Failed to switch GPU mode to ${input.mode}`);
   }
