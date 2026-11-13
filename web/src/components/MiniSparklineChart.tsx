@@ -1,10 +1,12 @@
 "use client";
 
 import { useId } from "react";
+import { useAcerStore } from "@/store/useAcerStore";
 
 interface MiniSparklineChartProps {
   values: number[];
   color?: string;
+  lightColor?: string;
   height?: number;
   unit?: string;
   minFloor?: number;
@@ -14,18 +16,21 @@ interface MiniSparklineChartProps {
 export function MiniSparklineChart({
   values,
   color = "#22d3ee",
+  lightColor,
   height = 56,
   unit = "",
   minFloor,
   maxCeil,
 }: MiniSparklineChartProps) {
+  const theme = useAcerStore((s) => s.theme);
+  const strokeColor = theme === "light" && lightColor ? lightColor : color;
   const gradId = useId().replace(/:/g, "");
   const width = 220;
 
   if (values.length === 0) {
     return (
       <div
-        className="flex items-center justify-center rounded-lg border border-slate-800/70 bg-slate-950/40 text-xs text-slate-500"
+        className="flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50/80 text-xs text-slate-400 dark:border-slate-800/70 dark:bg-slate-950/40 dark:text-slate-500"
         style={{ height }}
       >
         Menunggu data telemetry...
@@ -63,21 +68,21 @@ export function MiniSparklineChart({
     <div className="space-y-1">
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        className="w-full overflow-visible rounded-lg border border-slate-800/60 bg-slate-950/50"
+        className="w-full overflow-visible rounded-lg border border-slate-200/90 bg-slate-50/70 dark:border-slate-800/60 dark:bg-slate-950/50"
         style={{ height }}
         preserveAspectRatio="none"
       >
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.38" />
-            <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+            <stop offset="0%" stopColor={strokeColor} stopOpacity={theme === "light" ? 0.28 : 0.38} />
+            <stop offset="100%" stopColor={strokeColor} stopOpacity="0.02" />
           </linearGradient>
         </defs>
         <path d={areaPath} fill={`url(#${gradId})`} />
         <path
           d={linePath}
           fill="none"
-          stroke={color}
+          stroke={strokeColor}
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -86,20 +91,20 @@ export function MiniSparklineChart({
           cx={lastPoint.x}
           cy={lastPoint.y}
           r="3.2"
-          fill={color}
-          stroke="#07090f"
+          fill={strokeColor}
+          stroke={theme === "light" ? "#ffffff" : "#07090f"}
           strokeWidth="1.5"
         />
       </svg>
-      <div className="flex items-center justify-between text-[11px] text-slate-400">
+      <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
         <span>
-          Min: <strong className="text-slate-300">{rawMin.toFixed(0)}{unit}</strong>
+          Min: <strong className="text-slate-700 dark:text-slate-300">{rawMin.toFixed(0)}{unit}</strong>
         </span>
         <span>
-          Now: <strong style={{ color }}>{latest.toFixed(1)}{unit}</strong>
+          Now: <strong style={{ color: strokeColor }}>{latest.toFixed(1)}{unit}</strong>
         </span>
         <span>
-          Max: <strong className="text-slate-300">{rawMax.toFixed(0)}{unit}</strong>
+          Max: <strong className="text-slate-700 dark:text-slate-300">{rawMax.toFixed(0)}{unit}</strong>
         </span>
       </div>
     </div>

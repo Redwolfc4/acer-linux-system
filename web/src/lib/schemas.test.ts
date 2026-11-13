@@ -1,12 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { parseNbfcStatus } from "./hardware";
+import { parseNbfcStatus, readBatteryTelemetry } from "./hardware";
 import {
   BatteryControlRequestSchema,
+  BatteryTelemetrySchema,
   FanControlRequestSchema,
   FanSensorUpdateSchema,
   GpuControlRequestSchema,
   RgbControlRequestSchema,
   RgbProfileActionSchema,
+  RgbSavedStateSchema,
 } from "./schemas";
 
 describe("Zod Hardware Control Schemas", () => {
@@ -63,6 +65,52 @@ describe("Zod Hardware Control Schemas", () => {
       color: { r: 300, g: 0, b: 0 },
     });
     expect(invalidColor.success).toBe(false);
+  });
+
+  test("RgbSavedStateSchema validates state with isOff and lastActiveConfig", () => {
+    const activeState = {
+      mode: "wave",
+      zone: "all",
+      speed: 4,
+      brightness: 100,
+      direction: 2,
+      color: { r: 0, g: 240, b: 255 },
+      isOff: false,
+      lastActiveConfig: {
+        mode: "wave",
+        zone: "all",
+        speed: 4,
+        brightness: 100,
+        direction: 2,
+        color: { r: 0, g: 240, b: 255 },
+      },
+    };
+    const parsedActive = RgbSavedStateSchema.parse(activeState);
+    expect(parsedActive.isOff).toBe(false);
+    expect(parsedActive.mode).toBe("wave");
+    expect(parsedActive.lastActiveConfig?.brightness).toBe(100);
+
+    const offState = {
+      mode: "off",
+      zone: "all",
+      speed: 4,
+      brightness: 0,
+      direction: 2,
+      color: { r: 0, g: 255, b: 255 },
+      isOff: true,
+      lastActiveConfig: {
+        mode: "wave",
+        zone: "all",
+        speed: 4,
+        brightness: 100,
+        direction: 2,
+        color: { r: 0, g: 240, b: 255 },
+      },
+    };
+    const parsedOff = RgbSavedStateSchema.parse(offState);
+    expect(parsedOff.isOff).toBe(true);
+    expect(parsedOff.mode).toBe("off");
+    expect(parsedOff.lastActiveConfig?.mode).toBe("wave");
   });
 
   test("RgbProfileActionSchema rejects unsafe profile names", () => {
@@ -123,6 +171,50 @@ Fan Speed Steps          : 6122
     expect(parsed.fans[1].side).toBe("right");
     expect(parsed.fans[1].autoControl).toBe(false);
     expect(parsed.fans[1].currentSpeed).toBe(75);
+  });
+
+  test("BatteryTelemetrySchema parses battery telemetry with estimation and electrical metrics", () => {
+    const rawSample = {
+      driverLoaded: true,
+      capacity: 85,
+      status: "Charging",
+      temperature: 24.5,
+      healthMode: true,
+      persistBoot: true,
+      voltageVolts: 16.72,
+      currentAmps: 0.815,
+      powerWatts: 13.63,
+      chargeNowMah: 2450,
+      chargeFullMah: 2876,
+      chargeFullDesignMah: 3620,
+      healthPercent: 79.4,
+      timeTo80Minutes: 0,
+      timeToFullMinutes: 31,
+      timeToEmptyMinutes: null,
+      timeToTargetMinutes: 0,
+      targetPercent: 80,
+      targetReached: true,
+      estimateFormatted: "Batas 80% Cut-Off tercapai",
+    };
+
+    const parsed = BatteryTelemetrySchema.parse(rawSample);
+    expect(parsed.targetPercent).toBe(80);
+    expect(parsed.targetReached).toBe(true);
+    expect(parsed.estimateFormatted).toBe("Batas 80% Cut-Off tercapai");
+    expect(parsed.powerWatts).toBe(13.63);
+  });
+
+  test("readBatteryTelemetry reads real system battery or graceful defaults", () => {
+    const bat = readBatteryTelemetry();
+    expect(typeof bat.driverLoaded).toBe("boolean");
+    expect(typeof bat.status).toBe("string");
+    if (bat.capacity !== null) {
+      expect(bat.capacity).toBeGreaterThanOrEqual(0);
+      expect(bat.capacity).toBeLessThanOrEqual(100);
+    }
+    if (bat.status.toLowerCase() === "charging") {
+      expect(bat.timeToTargetMinutes !== null || bat.estimateFormatted !== null).toBe(true);
+    }
   });
 });
 

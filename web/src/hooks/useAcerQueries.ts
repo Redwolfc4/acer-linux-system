@@ -135,15 +135,17 @@ export function useFanSensorMutation() {
 }
 
 export function useRgbMutation() {
+  const qc = useQueryClient();
   const showToast = useAcerStore((s) => s.showToast);
 
   return useMutation({
     mutationFn: (body: RgbControlRequest) =>
       fetchJson("/api/rgb", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["rgb-profiles"] });
       showToast(
         "success",
-        vars.mode === "off"
+        vars.mode === "off" || vars.brightness === 0
           ? "Backlight keyboard dimatikan"
           : `RGB mode ${vars.mode.toUpperCase()} diterapkan`
       );
@@ -157,17 +159,24 @@ export function useRgbMutation() {
 export function useRgbProfileMutation() {
   const qc = useQueryClient();
   const showToast = useAcerStore((s) => s.showToast);
+  const applyLoadedRgbConfig = useAcerStore((s) => s.applyLoadedRgbConfig);
 
   return useMutation({
     mutationFn: (body: RgbProfileAction) =>
-      fetchJson("/api/rgb/profiles", { method: "POST", body: JSON.stringify(body) }),
-    onSuccess: (_data, vars) => {
+      fetchJson<{ loadedConfig?: RgbControlRequest }>("/api/rgb/profiles", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: ["rgb-profiles"] });
+      if (vars.action === "load" && data?.loadedConfig) {
+        applyLoadedRgbConfig(data.loadedConfig);
+      }
       showToast(
         "success",
         vars.action === "save"
           ? `Profil RGB "${vars.name}" tersimpan`
-          : `Profil RGB "${vars.name}" dimuat`
+          : `Profil RGB "${vars.name}" berhasil dimuat & diterapkan`
       );
     },
     onError: (err) => {

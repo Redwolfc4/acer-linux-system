@@ -8,9 +8,12 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const parsed = RgbProfileActionSchema.parse(body);
-    await handleRgbProfile(parsed);
+    const loadedConfig = await handleRgbProfile(parsed);
     const profiles = RgbProfilesResponseSchema.parse(await getRgbProfiles());
-    return apiOk(profiles);
+    return apiOk({
+      ...profiles,
+      loadedConfig,
+    });
   } catch (err) {
     return apiError(err, err instanceof SyntaxError ? 400 : 500);
   }

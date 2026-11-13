@@ -24,4 +24,5 @@ Module.symvers
 *.bak
 *.swp
 *~
+.playwright-mcp/
 

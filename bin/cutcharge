@@ -29,12 +29,57 @@ case "$1" in
         if [ -f "$SYSFS_PATH" ]; then
             val=$(cat "$SYSFS_PATH")
             if [ "$val" -eq 1 ]; then
-                echo "Status: ON (Limit 80%)"
+                echo "Status Limit: ON (Batas 80% Cut-Off)"
             else
-                echo "Status: OFF (Full 100%)"
+                echo "Status Limit: OFF (Cas Penuh 100%)"
             fi
         else
             echo "❌ Driver acer_wmi_battery tidak terdeteksi."
+        fi
+
+        BAT_DIR="/sys/class/power_supply/BAT1"
+        [ ! -d "$BAT_DIR" ] && BAT_DIR="/sys/class/power_supply/BAT0"
+        if [ -d "$BAT_DIR" ]; then
+            cap=$(cat "$BAT_DIR/capacity" 2>/dev/null || echo "N/A")
+            st=$(cat "$BAT_DIR/status" 2>/dev/null || echo "Unknown")
+            echo "Baterai     : ${cap}% (${st})"
+
+            # Estimasi waktu pengisian / pengosongan
+            if [ -f "$BAT_DIR/charge_now" ] && [ -f "$BAT_DIR/current_now" ]; then
+                c_now=$(cat "$BAT_DIR/charge_now" 2>/dev/null || echo 0)
+                c_full=$(cat "$BAT_DIR/charge_full" 2>/dev/null || echo 0)
+                cur=$(cat "$BAT_DIR/current_now" 2>/dev/null || echo 0)
+                cur=${cur#-}
+                if [ "$cur" -gt 20000 ] 2>/dev/null; then
+                    st_lower=$(echo "$st" | tr '[:upper:]' '[:lower:]')
+                    if [ "$st_lower" = "charging" ] && [ "$c_full" -gt 0 ]; then
+                        val_mode=$(cat "$SYSFS_PATH" 2>/dev/null || echo 0)
+                        if [ "$val_mode" -eq 1 ]; then
+                            target=$((c_full * 8 / 10))
+                            if [ "$c_now" -ge "$target" ] || [ "$cap" -ge 80 ] 2>/dev/null; then
+                                echo "Estimasi    : Batas 80% Cut-Off tercapai"
+                            else
+                                rem=$((target - c_now))
+                                mins=$((rem * 60 / cur))
+                                echo "Estimasi    : ~$mins mnt menuju batas 80% (Cut-Off)"
+                            fi
+                        else
+                            rem=$((c_full - c_now))
+                            mins=$((rem * 60 / cur))
+                            echo "Estimasi    : ~$mins mnt menuju penuh 100%"
+                        fi
+                    elif [ "$st_lower" = "discharging" ] && [ "$c_now" -gt 0 ]; then
+                        mins=$((c_now * 60 / cur))
+                        hours=$((mins / 60))
+                        rem_m=$((mins % 60))
+                        if [ "$hours" -gt 0 ]; then
+                            echo "Estimasi    : ~$hours jam $rem_m menit sisa waktu pemakaian"
+                        else
+                            echo "Estimasi    : ~$rem_m menit sisa waktu pemakaian"
+                        fi
+                    fi
+                fi
+            fi
         fi
         ;;
     *)

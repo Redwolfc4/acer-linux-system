@@ -359,39 +359,191 @@ function show_fan_menu() {
     done
 }
 
+function get_rgb_state_file() {
+    local real_home
+    real_home=$(get_real_home)
+    echo "${real_home}/.config/predator/last_state.json"
+}
+
+function save_cli_rgb_state() {
+    local mode="$1"
+    local speed="${2:-4}"
+    local brightness="${3:-100}"
+    local direction="${4:-2}"
+    local r="${5:-0}"
+    local g="${6:-240}"
+    local b="${7:-255}"
+    local is_off="${8:-false}"
+
+    local state_file
+    state_file=$(get_rgb_state_file)
+    mkdir -p "$(dirname "$state_file")"
+
+    python3 -c "
+import json, os, datetime
+
+file_path = '$state_file'
+existing = {}
+if os.path.exists(file_path):
+    try:
+        with open(file_path, 'r') as f:
+            existing = json.load(f)
+    except:
+        pass
+
+is_off = ('$is_off'.lower() == 'true')
+mode = '$mode'
+
+if not is_off:
+    last_active = {
+        'mode': mode,
+        'zone': 'all',
+        'speed': int('$speed'),
+        'brightness': int('$brightness'),
+        'direction': int('$direction'),
+        'color': {'r': int('$r'), 'g': int('$g'), 'b': int('$b')}
+    }
+    state = {
+        **last_active,
+        'isOff': False,
+        'lastActiveConfig': last_active,
+        'updatedAt': datetime.datetime.now(datetime.timezone.utc).isoformat()
+    }
+else:
+    fallback = {
+        'mode': 'wave',
+        'zone': 'all',
+        'speed': 4,
+        'brightness': 100,
+        'direction': 2,
+        'color': {'r': 0, 'g': 240, 'b': 255}
+    }
+    last_active = existing.get('lastActiveConfig') or fallback
+    state = {
+        'mode': 'off',
+        'zone': 'all',
+        'speed': int('$speed'),
+        'brightness': 0,
+        'direction': int('$direction'),
+        'color': {'r': int('$r'), 'g': int('$g'), 'b': int('$b')},
+        'isOff': True,
+        'lastActiveConfig': last_active,
+        'updatedAt': datetime.datetime.now(datetime.timezone.utc).isoformat()
+    }
+
+with open(file_path, 'w') as f:
+    json.dump(state, f, indent=2)
+" 2>/dev/null || true
+}
+
+function restore_cli_previous_rgb() {
+    local state_file
+    state_file=$(get_rgb_state_file)
+    if [ ! -f "$state_file" ]; then
+        echo -e "${YELLOW}Belum ada pengaturan tersimpan. Mengaktifkan mode default (Wave 100%)...${RESET}"
+        python3 "$FACER_RGB_SCRIPT" -m 3 -s 5 -b 100
+        save_cli_rgb_state "wave" 5 100 2 0 240 255 false
+        return
+    fi
+
+    python3 -c "
+import json, os, subprocess
+
+file_path = '$state_file'
+script = '$FACER_RGB_SCRIPT'
+with open(file_path, 'r') as f:
+    data = json.load(f)
+
+cfg = data.get('lastActiveConfig') or data
+mode = cfg.get('mode', 'wave')
+speed = cfg.get('speed', 4)
+brightness = cfg.get('brightness', 100)
+if brightness <= 0:
+    brightness = 100
+direction = cfg.get('direction', 2)
+color = cfg.get('color', {'r': 0, 'g': 240, 'b': 255})
+zone_colors = cfg.get('zoneColors')
+
+mode_map = {'static': 0, 'breath': 1, 'neon': 2, 'wave': 3, 'shifting': 4, 'zoom': 5}
+mode_idx = mode_map.get(mode, 3)
+
+if mode == 'static':
+    if zone_colors and len(zone_colors) > 0:
+        for zc in zone_colors:
+            subprocess.run(['python3', script, '-m', '0', '-z', str(zc['zone']), '-b', str(brightness), '-cR', str(zc['r']), '-cG', str(zc['g']), '-cB', str(zc['b'])], check=True)
+    else:
+        for z in [1, 2, 3, 4]:
+            subprocess.run(['python3', script, '-m', '0', '-z', str(z), '-b', str(brightness), '-cR', str(color['r']), '-cG', str(color['g']), '-cB', str(color['b'])], check=True)
+else:
+    cmd = ['python3', script, '-m', str(mode_idx), '-s', str(speed), '-b', str(brightness), '-d', str(direction)]
+    if mode not in ['neon', 'wave']:
+        cmd.extend(['-cR', str(color['r']), '-cG', str(color['g']), '-cB', str(color['b'])])
+    subprocess.run(cmd, check=True)
+
+data['isOff'] = False
+data['mode'] = mode
+data['brightness'] = brightness
+with open(file_path, 'w') as f:
+    json.dump(data, f, indent=2)
+
+print(f'✓ Pengaturan sebelumnya berhasil dipulihkan! (Mode: {mode.upper()}, Brightness: {brightness}%)')
+"
+}
+
 # ==========================================================
 # 2. KEYBOARD RGB
 # ==========================================================
 function show_keyboard_menu() {
     while true; do
+        local cur_status=""
+        local state_file
+        state_file=$(get_rgb_state_file)
+        if [ -f "$state_file" ]; then
+            local is_off
+            is_off=$(python3 -c "import json; data=json.load(open('$state_file')); print('true' if data.get('isOff') or data.get('mode')=='off' or data.get('brightness')==0 else 'false')" 2>/dev/null || echo "false")
+            if [ "$is_off" = "true" ]; then
+                local prev_mode
+                prev_mode=$(python3 -c "import json; data=json.load(open('$state_file')); print((data.get('lastActiveConfig') or {}).get('mode', 'wave').upper())" 2>/dev/null || echo "WAVE")
+                cur_status="${RED}[ Status: OFF • Sebelumnya: ${prev_mode} ]${RESET}"
+            else
+                local act_mode
+                act_mode=$(python3 -c "import json; data=json.load(open('$state_file')); print(data.get('mode', 'aktif').upper())" 2>/dev/null || echo "AKTIF")
+                cur_status="${GREEN}[ Status: AKTIF • Mode ${act_mode} ]${RESET}"
+            fi
+        fi
+
         show_header
-        echo -e "${BOLD}${YELLOW}[ PENGATURAN KEYBOARD RGB BACKLIGHT ]${RESET}\n"
+        echo -e "${BOLD}${YELLOW}[ PENGATURAN KEYBOARD RGB BACKLIGHT ]${RESET} $cur_status\n"
         echo -e "  ${GREEN}1)${RESET} Nyalakan RGB - Efek Neon (Warna-warni berputar)"
         echo -e "  ${GREEN}2)${RESET} Nyalakan RGB - Efek Wave (Gelombang)"
         echo -e "  ${GREEN}3)${RESET} Nyalakan RGB - Efek Breathing (Pernapasan)"
         echo -e "  ${GREEN}4)${RESET} Nyalakan RGB - Static 1 Warna (Pilih warna)"
         echo -e "  ${GREEN}5)${RESET} Buka Wizard Pengaturan Keyboard Lengkap (keyboard.py)"
         echo -e "  ${RED}6)${RESET} Matikan Lampu Keyboard (Backlight OFF)"
+        echo -e "  ${CYAN}7)${RESET} 💡 ${BOLD}Nyalakan Lampu & Kembalikan Pengaturan Sebelumnya${RESET}"
         echo -e "  ${RED}0)${RESET} Kembali ke Menu Utama"
         echo ""
-        read -p "Masukkan pilihan [0-6]: " kb_choice
+        read -p "Masukkan pilihan [0-7]: " kb_choice
 
         case $kb_choice in
             1)
                 echo -e "\n${YELLOW}Menerapkan efek Neon...${RESET}"
                 python3 "$FACER_RGB_SCRIPT" -m 2 -s 4 -b 100
+                save_cli_rgb_state "neon" 4 100 2 0 255 255 false
                 echo -e "${GREEN}✓ Efek Neon aktif!${RESET}"
                 read -p "Tekan Enter untuk melanjutkan..."
                 ;;
             2)
                 echo -e "\n${YELLOW}Menerapkan efek Wave...${RESET}"
                 python3 "$FACER_RGB_SCRIPT" -m 3 -s 5 -b 100
+                save_cli_rgb_state "wave" 5 100 2 0 240 255 false
                 echo -e "${GREEN}✓ Efek Wave aktif!${RESET}"
                 read -p "Tekan Enter untuk melanjutkan..."
                 ;;
             3)
                 echo -e "\n${YELLOW}Menerapkan efek Breathing (Cyan)...${RESET}"
                 python3 "$FACER_RGB_SCRIPT" -m 1 -s 3 -b 100 -cR 0 -cG 255 -cB 255
+                save_cli_rgb_state "breath" 3 100 2 0 255 255 false
                 echo -e "${GREEN}✓ Efek Breathing aktif!${RESET}"
                 read -p "Tekan Enter untuk melanjutkan..."
                 ;;
@@ -409,12 +561,12 @@ function show_keyboard_menu() {
                     continue
                 fi
                 case $color_choice in
-                    1) python3 "$FACER_RGB_SCRIPT" -m 0 -z 1 -b 100 -cR 0 -cG 255 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 2 -b 100 -cR 0 -cG 255 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 3 -b 100 -cR 0 -cG 255 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 4 -b 100 -cR 0 -cG 255 -cB 255 ;;
-                    2) python3 "$FACER_RGB_SCRIPT" -m 0 -z 1 -b 100 -cR 255 -cG 0 -cB 0 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 2 -b 100 -cR 255 -cG 0 -cB 0 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 3 -b 100 -cR 255 -cG 0 -cB 0 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 4 -b 100 -cR 255 -cG 0 -cB 0 ;;
-                    3) python3 "$FACER_RGB_SCRIPT" -m 0 -z 1 -b 100 -cR 0 -cG 0 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 2 -b 100 -cR 0 -cG 0 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 3 -b 100 -cR 0 -cG 0 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 4 -b 100 -cR 0 -cG 0 -cB 255 ;;
-                    4) python3 "$FACER_RGB_SCRIPT" -m 0 -z 1 -b 100 -cR 0 -cG 255 -cB 0 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 2 -b 100 -cR 0 -cG 255 -cB 0 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 3 -b 100 -cR 0 -cG 255 -cB 0 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 4 -b 100 -cR 0 -cG 255 -cB 0 ;;
-                    5) python3 "$FACER_RGB_SCRIPT" -m 0 -z 1 -b 100 -cR 255 -cG 255 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 2 -b 100 -cR 255 -cG 255 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 3 -b 100 -cR 255 -cG 255 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 4 -b 100 -cR 255 -cG 255 -cB 255 ;;
-                    6) python3 "$FACER_RGB_SCRIPT" -m 0 -z 1 -b 100 -cR 180 -cG 0 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 2 -b 100 -cR 180 -cG 0 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 3 -b 100 -cR 180 -cG 0 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 4 -b 100 -cR 180 -cG 0 -cB 255 ;;
+                    1) python3 "$FACER_RGB_SCRIPT" -m 0 -z 1 -b 100 -cR 0 -cG 255 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 2 -b 100 -cR 0 -cG 255 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 3 -b 100 -cR 0 -cG 255 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 4 -b 100 -cR 0 -cG 255 -cB 255 && save_cli_rgb_state "static" 0 100 2 0 255 255 false ;;
+                    2) python3 "$FACER_RGB_SCRIPT" -m 0 -z 1 -b 100 -cR 255 -cG 0 -cB 0 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 2 -b 100 -cR 255 -cG 0 -cB 0 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 3 -b 100 -cR 255 -cG 0 -cB 0 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 4 -b 100 -cR 255 -cG 0 -cB 0 && save_cli_rgb_state "static" 0 100 2 255 0 0 false ;;
+                    3) python3 "$FACER_RGB_SCRIPT" -m 0 -z 1 -b 100 -cR 0 -cG 0 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 2 -b 100 -cR 0 -cG 0 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 3 -b 100 -cR 0 -cG 0 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 4 -b 100 -cR 0 -cG 0 -cB 255 && save_cli_rgb_state "static" 0 100 2 0 0 255 false ;;
+                    4) python3 "$FACER_RGB_SCRIPT" -m 0 -z 1 -b 100 -cR 0 -cG 255 -cB 0 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 2 -b 100 -cR 0 -cG 255 -cB 0 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 3 -b 100 -cR 0 -cG 255 -cB 0 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 4 -b 100 -cR 0 -cG 255 -cB 0 && save_cli_rgb_state "static" 0 100 2 0 255 0 false ;;
+                    5) python3 "$FACER_RGB_SCRIPT" -m 0 -z 1 -b 100 -cR 255 -cG 255 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 2 -b 100 -cR 255 -cG 255 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 3 -b 100 -cR 255 -cG 255 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 4 -b 100 -cR 255 -cG 255 -cB 255 && save_cli_rgb_state "static" 0 100 2 255 255 255 false ;;
+                    6) python3 "$FACER_RGB_SCRIPT" -m 0 -z 1 -b 100 -cR 180 -cG 0 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 2 -b 100 -cR 180 -cG 0 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 3 -b 100 -cR 180 -cG 0 -cB 255 && python3 "$FACER_RGB_SCRIPT" -m 0 -z 4 -b 100 -cR 180 -cG 0 -cB 255 && save_cli_rgb_state "static" 0 100 2 180 0 255 false ;;
                     *) echo -e "${RED}Pilihan tidak valid!${RESET}"; sleep 1; continue ;;
                 esac
                 echo -e "${GREEN}✓ Warna static diterapkan!${RESET}"
@@ -426,7 +578,13 @@ function show_keyboard_menu() {
             6)
                 echo -e "\n${YELLOW}Mematikan lampu backlight keyboard...${RESET}"
                 python3 "$FACER_RGB_SCRIPT" -b 0
-                echo -e "${GREEN}✓ Lampu keyboard OFF!${RESET}"
+                save_cli_rgb_state "off" 4 0 2 0 255 255 true
+                echo -e "${GREEN}✓ Lampu keyboard OFF! (Pengaturan sebelumnya telah disimpan)${RESET}"
+                read -p "Tekan Enter untuk melanjutkan..."
+                ;;
+            7)
+                echo -e "\n${YELLOW}Menyalakan lampu keyboard & memulihkan pengaturan sebelumnya...${RESET}"
+                restore_cli_previous_rgb
                 read -p "Tekan Enter untuk melanjutkan..."
                 ;;
             0)
@@ -481,11 +639,117 @@ function show_battery_menu() {
             health_mode="${RED}Driver Belum Terhubung${RESET}"
         fi
 
+        # Hitung estimasi waktu & metrik kelistrikan
+        local est_target="N/A"
+        local est_80="N/A"
+        local est_full="N/A"
+        local pwr_info="N/A"
+        local health_stat="N/A"
+
+        if [ -d "$bat_path" ]; then
+            eval "$(python3 -c "
+import os
+
+bat = '$bat_path'
+wmi = '$wmi_path'
+
+def ri(fn):
+    try:
+        return int(open(os.path.join(bat, fn)).read().strip())
+    except:
+        return None
+
+cap = ri('capacity') or 0
+status = open(os.path.join(bat, 'status')).read().strip() if os.path.exists(os.path.join(bat, 'status')) else 'Unknown'
+c_now = ri('charge_now') or 0
+c_full = ri('charge_full') or 0
+c_des = ri('charge_full_design') or 0
+cur = abs(ri('current_now') or 0)
+volt = ri('voltage_now') or 0
+
+hm_val = None
+if os.path.exists(os.path.join(wmi, 'health_mode')):
+    try:
+        hm_val = open(os.path.join(wmi, 'health_mode')).read().strip()
+    except:
+        pass
+
+pwr_w = (volt / 1e6) * (cur / 1e6) if volt and cur else 0.0
+cur_ma = cur // 1000
+volt_v = volt / 1e6 if volt else 0.0
+
+st = status.lower()
+pwr_str = f'{pwr_w:.2f} W ({cur_ma} mA, {volt_v:.2f} V)'
+if st == 'discharging':
+    pwr_str = f'-{pwr_w:.2f} W ({cur_ma} mA, {volt_v:.2f} V)'
+elif st == 'charging':
+    pwr_str = f'+{pwr_w:.2f} W ({cur_ma} mA, {volt_v:.2f} V)'
+
+def fmt_time(m):
+    if m <= 0: return '0 mnt'
+    h = m // 60
+    rem = m % 60
+    return f'{h}j {rem}m' if h > 0 else f'{rem} mnt'
+
+est_80 = 'N/A'
+est_full = 'N/A'
+est_target = 'N/A'
+
+if st == 'charging':
+    if cur > 20000 and c_full > 0:
+        c80 = int(c_full * 0.8)
+        if c_now >= c80 or cap >= 80:
+            est_80 = 'Tercapai ✓'
+        else:
+            m80 = max(1, int(((c80 - c_now) / cur) * 60))
+            est_80 = f'~{fmt_time(m80)}'
+
+        if c_now >= c_full or cap >= 100:
+            est_full = 'Penuh ✓'
+        else:
+            m100 = max(1, int(((c_full - c_now) / cur) * 60))
+            est_full = f'~{fmt_time(m100)}'
+
+        if hm_val == '1':
+            est_target = f'{est_80} (Menuju batas 80% Cut-Off)'
+        else:
+            est_target = f'{est_full} (Menuju 100% penuh)'
+    else:
+        est_target = 'Menghitung estimasi...'
+elif st == 'discharging':
+    if cur > 20000 and c_now > 0:
+        m_empty = max(1, int((c_now / cur) * 60))
+        est_target = f'~{fmt_time(m_empty)} sisa waktu pemakaian'
+    else:
+        est_target = 'Menghitung sisa waktu...'
+elif st == 'full':
+    est_target = 'Baterai Penuh (100%)'
+elif st == 'not charging':
+    est_target = 'Cut-Off Aktif (Daya AC tersambung, baterai terlindungi)' if cap >= 80 else 'Adaptor AC Tersambung (Idle)'
+
+hlth_pct = f'{c_full / c_des * 100:.1f}%' if c_full and c_des else 'N/A'
+hlth_str = f'{hlth_pct} ({c_full//1000} / {c_des//1000} mAh)' if c_full and c_des else 'N/A'
+
+print(f'est_target=\"{est_target}\"')
+print(f'est_80=\"{est_80}\"')
+print(f'est_full=\"{est_full}\"')
+print(f'pwr_info=\"{pwr_str}\"')
+print(f'health_stat=\"{hlth_str}\"')
+" 2>/dev/null)"
+        fi
+
         echo -e "${CYAN}Informasi Baterai Saat Ini:${RESET}"
         echo -e "  • Persentase Daya : ${BOLD}${capacity}%${RESET}"
         echo -e "  • Status Pengisian: ${BOLD}${status}${RESET}"
         echo -e "  • Suhu Baterai    : ${BOLD}${temp}${RESET}"
         echo -e "  • Batas Cas (Limit): ${health_mode}"
+        echo -e "  • Laju Daya (Power): ${BOLD}${pwr_info}${RESET}"
+        echo -e "  • Waktu Estimasi  : ${BOLD}${GREEN}${est_target}${RESET}"
+        if [ "${status,,}" = "charging" ]; then
+            echo -e "    ↳ Ke Batas 80%  : ${est_80}"
+            echo -e "    ↳ Ke Penuh 100% : ${est_full}"
+        fi
+        echo -e "  • Kesehatan Baterai: ${health_stat}"
         echo -e "${CYAN}----------------------------------------------------${RESET}"
         echo -e "${BOLD}Pilih Aksi:${RESET}"
         echo -e "  ${GREEN}1)${RESET} Aktifkan Batas Cas 80% (Battery Care / Cut-Off ON)"

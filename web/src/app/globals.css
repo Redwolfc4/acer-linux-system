@@ -1,14 +1,23 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
+  color-scheme: dark light;
+}
+
+html.dark {
   color-scheme: dark;
 }
 
+html.light {
+  color-scheme: light;
+}
+
 body {
-  background-color: #07090f;
-  color: #e6edf7;
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overflow-x: hidden;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 @keyframes fan-spin {

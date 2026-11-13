@@ -16,7 +16,7 @@ export default function DashboardPage() {
   const showAll = activeTab === "all";
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_rgba(34,211,238,0.08),_transparent_50%),radial-gradient(ellipse_at_bottom_right,_rgba(244,63,94,0.06),_transparent_50%)]">
+    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_rgba(14,165,233,0.08),_transparent_50%),radial-gradient(ellipse_at_bottom_right,_rgba(244,63,94,0.05),_transparent_50%)] dark:bg-[radial-gradient(ellipse_at_top,_rgba(34,211,238,0.08),_transparent_50%),radial-gradient(ellipse_at_bottom_right,_rgba(244,63,94,0.06),_transparent_50%)]">
       <TopTelemetryBar
         telemetry={telemetryQuery.data}
         isFetching={telemetryQuery.isFetching}
@@ -25,7 +25,7 @@ export default function DashboardPage() {
 
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
         {telemetryQuery.isError && (
-          <div className="rounded-xl border border-rose-500/40 bg-rose-950/40 p-4 text-xs text-rose-200">
+          <div className="rounded-xl border border-rose-300 bg-rose-50 p-4 text-xs text-rose-800 shadow-xs dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-200">
             Gagal membaca telemetry hardware:{" "}
             {telemetryQuery.error instanceof Error
               ? telemetryQuery.error.message

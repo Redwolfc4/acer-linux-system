@@ -92,6 +92,23 @@ export const RgbControlRequestSchema = z.object({
 
 export type RgbControlRequest = z.infer<typeof RgbControlRequestSchema>;
 
+export const RgbSavedStateSchema = z.object({
+  mode: RgbModeSchema,
+  zone: z
+    .union([z.literal("all"), z.literal(1), z.literal(2), z.literal(3), z.literal(4)])
+    .default("all"),
+  speed: z.number().int().min(0).max(9).default(4),
+  brightness: z.number().int().min(0).max(100).default(100),
+  direction: z.union([z.literal(1), z.literal(2)]).default(2),
+  color: RgbColorSchema.default({ r: 0, g: 255, b: 255 }),
+  zoneColors: z.array(ZoneColorSchema).optional(),
+  isOff: z.boolean().default(false),
+  lastActiveConfig: RgbControlRequestSchema.optional(),
+  updatedAt: z.string().optional(),
+});
+
+export type RgbSavedState = z.infer<typeof RgbSavedStateSchema>;
+
 export const RgbProfileActionSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("save"),
@@ -120,6 +137,8 @@ export const RgbProfilesResponseSchema = z.object({
   available: z.boolean(),
   devicePresent: z.boolean(),
   profiles: z.array(z.string()),
+  currentState: RgbSavedStateSchema.nullable().optional(),
+  lastActiveConfig: RgbControlRequestSchema.nullable().optional(),
 });
 
 export type RgbProfilesResponse = z.infer<typeof RgbProfilesResponseSchema>;
@@ -167,6 +186,33 @@ export const GpuDeviceSchema = z.object({
   isDiscrete: z.boolean(),
 });
 
+export const BatteryTelemetrySchema = z.object({
+  driverLoaded: z.boolean(),
+  capacity: z.number().nullable(),
+  status: z.string(),
+  temperature: z.number().nullable(),
+  healthMode: z.boolean().nullable(),
+  persistBoot: z.boolean(),
+  // Real-time electrical measurements
+  voltageVolts: z.number().nullable().default(null),
+  currentAmps: z.number().nullable().default(null),
+  powerWatts: z.number().nullable().default(null),
+  chargeNowMah: z.number().nullable().default(null),
+  chargeFullMah: z.number().nullable().default(null),
+  chargeFullDesignMah: z.number().nullable().default(null),
+  healthPercent: z.number().nullable().default(null),
+  // Time estimates (in minutes)
+  timeTo80Minutes: z.number().nullable().default(null),
+  timeToFullMinutes: z.number().nullable().default(null),
+  timeToEmptyMinutes: z.number().nullable().default(null),
+  timeToTargetMinutes: z.number().nullable().default(null),
+  targetPercent: z.number().default(80),
+  targetReached: z.boolean().default(false),
+  estimateFormatted: z.string().nullable().default(null),
+});
+
+export type BatteryTelemetry = z.infer<typeof BatteryTelemetrySchema>;
+
 export const TelemetryResponseSchema = z.object({
   timestamp: z.number(),
   system: z.object({
@@ -187,14 +233,7 @@ export const TelemetryResponseSchema = z.object({
     readOnly: z.boolean(),
     fans: z.array(FanTelemetrySchema),
   }),
-  battery: z.object({
-    driverLoaded: z.boolean(),
-    capacity: z.number().nullable(),
-    status: z.string(),
-    temperature: z.number().nullable(),
-    healthMode: z.boolean().nullable(),
-    persistBoot: z.boolean(),
-  }),
+  battery: BatteryTelemetrySchema,
   rgb: z.object({
     devicePresent: z.boolean(),
   }),

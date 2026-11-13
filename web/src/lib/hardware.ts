@@ -1,20 +1,24 @@
-import { execFile } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { execFile, execSync } from "node:child_process";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import type {
-  BatteryControlRequest,
-  FanControlRequest,
-  FanSensorUpdateRequest,
-  FanSensorsResponse,
-  FanTelemetry,
-  GitOverviewResponse,
-  GpuControlRequest,
-  RgbControlRequest,
-  RgbProfileAction,
-  RgbProfilesResponse,
-  TelemetryResponse,
+import {
+  type BatteryControlRequest,
+  type BatteryTelemetry,
+  type FanControlRequest,
+  type FanSensorUpdateRequest,
+  type FanSensorsResponse,
+  type FanTelemetry,
+  type GitOverviewResponse,
+  type GpuControlRequest,
+  type RgbControlRequest,
+  type RgbMode,
+  type RgbProfileAction,
+  type RgbProfilesResponse,
+  type RgbSavedState,
+  RgbSavedStateSchema,
+  type TelemetryResponse,
 } from "./schemas";
 
 const execFileAsync = promisify(execFile);
@@ -240,6 +244,205 @@ export function parseNbfcStatus(output: string): {
   return { readOnly, configName, fans };
 }
 
+function resolveBatteryDir(): string {
+  if (existsSync("/sys/class/power_supply/BAT1")) return "/sys/class/power_supply/BAT1";
+  if (existsSync("/sys/class/power_supply/BAT0")) return "/sys/class/power_supply/BAT0";
+  return BAT1_DIR;
+}
+
+function formatDuration(minutes: number): string {
+  if (minutes <= 0) return "0 mnt";
+  const hours = Math.floor(minutes / 60);
+  const remMinutes = minutes % 60;
+  if (hours === 0) return `${remMinutes} mnt`;
+  if (remMinutes === 0) return `${hours} jam`;
+  return `${hours}j ${remMinutes}m`;
+}
+
+export function readBatteryTelemetry(): BatteryTelemetry {
+  const batDir = resolveBatteryDir();
+  const rawCap = readText(path.join(batDir, "capacity"));
+  const rawStatus = readText(path.join(batDir, "status")) ?? "Unknown";
+  const rawVolt = readText(path.join(batDir, "voltage_now"));
+  const rawCurrent = readText(path.join(batDir, "current_now"));
+  const rawPower = readText(path.join(batDir, "power_now"));
+  const rawChargeNow = readText(path.join(batDir, "charge_now"));
+  const rawChargeFull = readText(path.join(batDir, "charge_full"));
+  const rawChargeFullDesign = readText(path.join(batDir, "charge_full_design"));
+  const rawBatTemp = readText(path.join(WMI_BATTERY_DIR, "temperature"));
+  const rawHealth = readText(path.join(WMI_BATTERY_DIR, "health_mode"));
+  const modprobeConf = readText(MODPROBE_BAT_CONF) ?? "";
+
+  const capacity = rawCap !== null ? Number.parseInt(rawCap, 10) : null;
+  const status = rawStatus;
+  const healthMode = rawHealth !== null ? rawHealth === "1" : null;
+  const persistBoot = modprobeConf.includes("enable_health_mode=1");
+
+  const temperature =
+    rawBatTemp !== null
+      ? Number((Number.parseInt(rawBatTemp, 10) / 1000).toFixed(1))
+      : null;
+
+  const rawVoltNum = rawVolt ? Number.parseInt(rawVolt, 10) : null;
+  const voltageVolts =
+    rawVoltNum !== null && !Number.isNaN(rawVoltNum)
+      ? Number((rawVoltNum / 1_000_000).toFixed(2))
+      : null;
+
+  const rawCurrentNum = rawCurrent ? Math.abs(Number.parseInt(rawCurrent, 10)) : null;
+  const currentAmps =
+    rawCurrentNum !== null && !Number.isNaN(rawCurrentNum)
+      ? Number((rawCurrentNum / 1_000_000).toFixed(3))
+      : null;
+
+  let powerWatts: number | null = null;
+  if (rawPower) {
+    const p = Math.abs(Number.parseInt(rawPower, 10));
+    if (!Number.isNaN(p)) {
+      powerWatts = Number((p / 1_000_000).toFixed(2));
+    }
+  } else if (voltageVolts !== null && currentAmps !== null) {
+    powerWatts = Number((voltageVolts * currentAmps).toFixed(2));
+  }
+
+  const rawChargeNowNum = rawChargeNow ? Number.parseInt(rawChargeNow, 10) : null;
+  const chargeNowMah =
+    rawChargeNowNum !== null && !Number.isNaN(rawChargeNowNum)
+      ? Math.round(rawChargeNowNum / 1000)
+      : null;
+
+  const rawChargeFullNum = rawChargeFull ? Number.parseInt(rawChargeFull, 10) : null;
+  const chargeFullMah =
+    rawChargeFullNum !== null && !Number.isNaN(rawChargeFullNum)
+      ? Math.round(rawChargeFullNum / 1000)
+      : null;
+
+  const rawChargeFullDesignNum = rawChargeFullDesign
+    ? Number.parseInt(rawChargeFullDesign, 10)
+    : null;
+  const chargeFullDesignMah =
+    rawChargeFullDesignNum !== null && !Number.isNaN(rawChargeFullDesignNum)
+      ? Math.round(rawChargeFullDesignNum / 1000)
+      : null;
+
+  const healthPercent =
+    chargeFullMah && chargeFullDesignMah && chargeFullDesignMah > 0
+      ? Number(((chargeFullMah / chargeFullDesignMah) * 100).toFixed(1))
+      : null;
+
+  // Target sesuai kebutuhan pengguna:
+  // Jika Limit 80% (healthMode=true) aktif -> target 80% (cut-off).
+  // Jika Cas Penuh (healthMode=false) aktif -> target 100% full.
+  const targetPercent = healthMode === true ? 80 : 100;
+
+  let timeTo80Minutes: number | null = null;
+  let timeToFullMinutes: number | null = null;
+  let timeToEmptyMinutes: number | null = null;
+  let timeToTargetMinutes: number | null = null;
+  let targetReached = false;
+  let estimateFormatted: string | null = null;
+
+  const statusNorm = status.toLowerCase();
+
+  if (statusNorm === "charging") {
+    // Estimasi pengisian daya
+    if (rawChargeFullNum && rawChargeNowNum !== null && rawCurrentNum && rawCurrentNum > 20_000) {
+      const charge80 = Math.round(rawChargeFullNum * 0.8);
+      if (rawChargeNowNum >= charge80 || (capacity !== null && capacity >= 80)) {
+        timeTo80Minutes = 0;
+      } else {
+        timeTo80Minutes = Math.max(
+          1,
+          Math.round(((charge80 - rawChargeNowNum) / rawCurrentNum) * 60)
+        );
+      }
+
+      if (rawChargeNowNum >= rawChargeFullNum || (capacity !== null && capacity >= 100)) {
+        timeToFullMinutes = 0;
+      } else {
+        timeToFullMinutes = Math.max(
+          1,
+          Math.round(((rawChargeFullNum - rawChargeNowNum) / rawCurrentNum) * 60)
+        );
+      }
+    }
+
+    if (targetPercent === 80) {
+      targetReached = (capacity !== null && capacity >= 80) || timeTo80Minutes === 0;
+      timeToTargetMinutes = targetReached ? 0 : timeTo80Minutes;
+      if (targetReached) {
+        estimateFormatted = "Batas 80% Cut-Off tercapai";
+      } else if (timeTo80Minutes !== null) {
+        estimateFormatted = `~${formatDuration(timeTo80Minutes)} menuju batas 80%`;
+      } else {
+        estimateFormatted = "Menghitung estimasi...";
+      }
+    } else {
+      targetReached = (capacity !== null && capacity >= 100) || timeToFullMinutes === 0;
+      timeToTargetMinutes = targetReached ? 0 : timeToFullMinutes;
+      if (targetReached) {
+        estimateFormatted = "Baterai Penuh 100%";
+      } else if (timeToFullMinutes !== null) {
+        estimateFormatted = `~${formatDuration(timeToFullMinutes)} menuju 100% penuh`;
+      } else {
+        estimateFormatted = "Menghitung estimasi...";
+      }
+    }
+  } else if (statusNorm === "discharging") {
+    // Estimasi saat menggunakan daya baterai
+    targetReached = false;
+    timeTo80Minutes = null;
+    timeToFullMinutes = null;
+    timeToTargetMinutes = null;
+
+    if (rawChargeNowNum !== null && rawCurrentNum && rawCurrentNum > 20_000) {
+      timeToEmptyMinutes = Math.max(
+        1,
+        Math.round((rawChargeNowNum / rawCurrentNum) * 60)
+      );
+      estimateFormatted = `Sisa waktu: ~${formatDuration(timeToEmptyMinutes)}`;
+    } else {
+      estimateFormatted = "Menghitung sisa waktu...";
+    }
+  } else if (statusNorm === "full") {
+    targetReached = true;
+    timeTo80Minutes = 0;
+    timeToFullMinutes = 0;
+    timeToTargetMinutes = 0;
+    estimateFormatted = "Baterai Penuh (100%)";
+  } else if (statusNorm === "not charging") {
+    targetReached = capacity !== null && capacity >= 80;
+    estimateFormatted = targetReached
+      ? "Cut-Off aktif (Tersambung, tidak mengisi)"
+      : "Tersambung Adaptor AC (Tidak mengisi)";
+  } else {
+    estimateFormatted = status;
+  }
+
+  return {
+    driverLoaded: existsSync(WMI_BATTERY_DIR),
+    capacity,
+    status,
+    temperature,
+    healthMode,
+    persistBoot,
+    voltageVolts,
+    currentAmps,
+    powerWatts,
+    chargeNowMah,
+    chargeFullMah,
+    chargeFullDesignMah,
+    healthPercent,
+    timeTo80Minutes,
+    timeToFullMinutes,
+    timeToEmptyMinutes,
+    timeToTargetMinutes,
+    targetPercent,
+    targetReached,
+    estimateFormatted,
+  };
+}
+
 export async function getTelemetry(): Promise<TelemetryResponse> {
   const [nbfcRes, envyRes, switcherooRes, nvidiaRes] = await Promise.all([
     runCmd("nbfc", ["status"], 3000),
@@ -259,11 +462,7 @@ export async function getTelemetry(): Promise<TelemetryResponse> {
     ? parseNbfcStatus(nbfcRes.stdout)
     : { readOnly: false, configName: "Unavailable", fans: [] };
 
-  const rawCap = readText(path.join(BAT1_DIR, "capacity"));
-  const rawStatus = readText(path.join(BAT1_DIR, "status")) ?? "Unknown";
-  const rawBatTemp = readText(path.join(WMI_BATTERY_DIR, "temperature"));
-  const rawHealth = readText(path.join(WMI_BATTERY_DIR, "health_mode"));
-  const modprobeConf = readText(MODPROBE_BAT_CONF) ?? "";
+  const battery = readBatteryTelemetry();
 
   const devices: Array<{
     id: string;
@@ -327,17 +526,7 @@ export async function getTelemetry(): Promise<TelemetryResponse> {
       readOnly: parsedNbfc.readOnly,
       fans: parsedNbfc.fans,
     },
-    battery: {
-      driverLoaded: existsSync(WMI_BATTERY_DIR),
-      capacity: rawCap !== null ? Number.parseInt(rawCap, 10) : null,
-      status: rawStatus,
-      temperature:
-        rawBatTemp !== null
-          ? Number((Number.parseInt(rawBatTemp, 10) / 1000).toFixed(1))
-          : null,
-      healthMode: rawHealth !== null ? rawHealth === "1" : null,
-      persistBoot: modprobeConf.includes("enable_health_mode=1"),
-    },
+    battery,
     rgb: {
       devicePresent: existsSync(FACER_DEV),
     },
@@ -483,17 +672,135 @@ const MODE_INDEX_MAP: Record<Exclude<RgbControlRequest["mode"], "off">, number> 
   zoom: 5,
 };
 
+const INDEX_TO_MODE_MAP: Record<number, Exclude<RgbMode, "off">> = {
+  0: "static",
+  1: "breath",
+  2: "neon",
+  3: "wave",
+  4: "shifting",
+  5: "zoom",
+};
+
+export function getPredatorConfigDir(): string {
+  const sudoUser = process.env.SUDO_USER;
+  let baseHome = os.homedir();
+  if (sudoUser && sudoUser !== "root") {
+    try {
+      const userHome = execSync(`getent passwd ${sudoUser} | cut -d: -f6`, {
+        encoding: "utf-8",
+      }).trim();
+      if (userHome && existsSync(userHome)) {
+        baseHome = userHome;
+      }
+    } catch {
+      // fallback to os.homedir()
+    }
+  }
+  return path.join(baseHome, ".config", "predator");
+}
+
+export function getPredatorSavedProfilesDir(): string {
+  return path.join(getPredatorConfigDir(), "saved profiles");
+}
+
+export function getLastRgbStateFile(): string {
+  return path.join(getPredatorConfigDir(), "last_state.json");
+}
+
+export function readLastRgbState(): RgbSavedState | null {
+  const filePath = getLastRgbStateFile();
+  try {
+    if (!existsSync(filePath)) return null;
+    const raw = readFileSync(filePath, "utf-8");
+    const json = JSON.parse(raw);
+    const parsed = RgbSavedStateSchema.safeParse(json);
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveLastRgbState(state: RgbSavedState): void {
+  const dir = getPredatorConfigDir();
+  try {
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    const filePath = getLastRgbStateFile();
+    writeFileSync(filePath, JSON.stringify(state, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Failed to save last RGB state:", err);
+  }
+}
+
 export async function applyRgb(input: RgbControlRequest): Promise<void> {
   const script = resolveFacerRgbScript();
   if (!script) {
     throw new Error("facer_rgb.py not found in rgb/ or /opt/turbo-fan/");
   }
 
+  const existingState = readLastRgbState();
+
   if (input.mode === "off" || input.brightness === 0) {
     const res = await runCmd("python3", [script, "-b", "0"]);
     if (!res.ok) throw new Error(res.stderr || "Failed to turn off RGB backlight");
+
+    const fallbackActive: RgbControlRequest = {
+      mode: "wave",
+      zone: "all",
+      speed: 4,
+      brightness: 100,
+      direction: 2,
+      color: { r: 0, g: 240, b: 255 },
+    };
+
+    const lastActiveConfig =
+      existingState?.lastActiveConfig && existingState.lastActiveConfig.mode !== "off"
+        ? existingState.lastActiveConfig
+        : existingState && existingState.mode !== "off" && existingState.brightness > 0
+          ? {
+              mode: existingState.mode,
+              zone: existingState.zone,
+              speed: existingState.speed,
+              brightness: existingState.brightness,
+              direction: existingState.direction,
+              color: existingState.color,
+              zoneColors: existingState.zoneColors,
+            }
+          : fallbackActive;
+
+    saveLastRgbState({
+      mode: "off",
+      zone: input.zone ?? "all",
+      speed: input.speed ?? 4,
+      brightness: 0,
+      direction: input.direction ?? 2,
+      color: input.color ?? { r: 0, g: 240, b: 255 },
+      zoneColors: input.zoneColors,
+      isOff: true,
+      lastActiveConfig,
+      updatedAt: new Date().toISOString(),
+    });
     return;
   }
+
+  // Active lighting mode
+  const activeConfig: RgbControlRequest = {
+    mode: input.mode,
+    zone: input.zone ?? "all",
+    speed: input.speed ?? 4,
+    brightness: input.brightness,
+    direction: input.direction ?? 2,
+    color: input.color,
+    zoneColors: input.zoneColors,
+  };
+
+  saveLastRgbState({
+    ...activeConfig,
+    isOff: false,
+    lastActiveConfig: activeConfig,
+    updatedAt: new Date().toISOString(),
+  });
 
   if (input.mode === "static") {
     if (input.zoneColors && input.zoneColors.length > 0 && input.zone === "all") {
@@ -576,42 +883,108 @@ export async function applyRgb(input: RgbControlRequest): Promise<void> {
 
 export async function getRgbProfiles(): Promise<RgbProfilesResponse> {
   const script = resolveFacerRgbScript();
-  const savedDir = path.join(os.homedir(), ".config", "predator", "saved profiles");
+  const savedDir = getPredatorSavedProfilesDir();
   let profiles: string[] = [];
   try {
     if (existsSync(savedDir)) {
       profiles = readdirSync(savedDir)
-        .filter((f) => !f.startsWith("."))
+        .filter((f) => !f.startsWith(".") && f.endsWith(".json"))
         .map((f) => f.replace(/\.json$/i, ""));
     }
   } catch {
     profiles = [];
   }
 
+  const currentState = readLastRgbState();
+
   return {
     available: Boolean(script),
     devicePresent: existsSync(FACER_DEV),
     profiles,
+    currentState,
+    lastActiveConfig: currentState?.lastActiveConfig ?? null,
   };
 }
 
-export async function handleRgbProfile(input: RgbProfileAction): Promise<void> {
+export async function handleRgbProfile(
+  input: RgbProfileAction
+): Promise<RgbControlRequest | null> {
   const script = resolveFacerRgbScript();
   if (!script) {
     throw new Error("facer_rgb.py not found");
   }
 
+  const savedDir = getPredatorSavedProfilesDir();
+
   if (input.action === "load") {
     const res = await runCmd("python3", [script, "-load", input.name]);
     if (!res.ok) throw new Error(res.stderr || `Failed to load profile ${input.name}`);
-    return;
+
+    // Read profile JSON if present
+    const profileFile = path.join(savedDir, `${input.name}.json`);
+    let loadedConfig: RgbControlRequest | null = null;
+    if (existsSync(profileFile)) {
+      try {
+        const raw = readFileSync(profileFile, "utf-8");
+        const data = JSON.parse(raw);
+        let mode: RgbMode = "wave";
+        if (typeof data.mode === "number") {
+          mode = INDEX_TO_MODE_MAP[data.mode] ?? "wave";
+        } else if (typeof data.mode === "string") {
+          mode = (data.mode as RgbMode) || "wave";
+        }
+
+        const color = {
+          r: typeof data.red === "number" ? data.red : data.color?.r ?? 0,
+          g: typeof data.green === "number" ? data.green : data.color?.g ?? 255,
+          b: typeof data.blue === "number" ? data.blue : data.color?.b ?? 255,
+        };
+
+        const speed = typeof data.speed === "number" ? data.speed : 4;
+        const brightness = typeof data.brightness === "number" ? data.brightness : 100;
+        const direction = data.direction === 1 ? 1 : 2;
+        const zone =
+          data.zone && [1, 2, 3, 4].includes(data.zone)
+            ? (data.zone as 1 | 2 | 3 | 4)
+            : "all";
+
+        let zoneColors = data.zoneColors;
+        if (!zoneColors && mode === "static") {
+          zoneColors = ([1, 2, 3, 4] as const).map((z) => ({
+            zone: z,
+            ...color,
+          }));
+        }
+
+        loadedConfig = {
+          mode,
+          zone,
+          speed,
+          brightness,
+          direction,
+          color,
+          zoneColors,
+        };
+
+        // Also persist as last active state
+        saveLastRgbState({
+          ...loadedConfig,
+          isOff: mode === "off" || brightness === 0,
+          lastActiveConfig: loadedConfig,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch {
+        loadedConfig = null;
+      }
+    }
+    return loadedConfig;
   }
 
   const cfg = input.config;
   if (!cfg || cfg.mode === "off") {
     const res = await runCmd("python3", [script, "-b", "0", "-save", input.name]);
     if (!res.ok) throw new Error(res.stderr || "Failed to save profile");
-    return;
+    return null;
   }
 
   const modeIdx = MODE_INDEX_MAP[cfg.mode];
@@ -636,6 +1009,20 @@ export async function handleRgbProfile(input: RgbProfileAction): Promise<void> {
   ];
   const res = await runCmd("python3", args);
   if (!res.ok) throw new Error(res.stderr || `Failed to save profile ${input.name}`);
+
+  // Enrich saved JSON with zoneColors if provided
+  const profileFile = path.join(savedDir, `${input.name}.json`);
+  if (existsSync(profileFile) && cfg.zoneColors) {
+    try {
+      const raw = JSON.parse(readFileSync(profileFile, "utf-8"));
+      raw.zoneColors = cfg.zoneColors;
+      writeFileSync(profileFile, JSON.stringify(raw, null, 2), "utf-8");
+    } catch {
+      // ignore
+    }
+  }
+
+  return cfg;
 }
 
 export async function controlBattery(input: BatteryControlRequest): Promise<void> {
