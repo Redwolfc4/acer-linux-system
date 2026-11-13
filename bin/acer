@@ -393,6 +393,14 @@ if os.path.exists(file_path):
 
 is_off = ('$is_off'.lower() == 'true')
 mode = '$mode'
+zone_colors = existing.get('zoneColors') or (existing.get('lastActiveConfig') or {}).get('zoneColors')
+if not zone_colors:
+    zone_colors = [
+        {'zone': 1, 'r': 0, 'g': 240, 'b': 255},
+        {'zone': 2, 'r': 0, 'g': 184, 'b': 255},
+        {'zone': 3, 'r': 168, 'g': 85, 'b': 247},
+        {'zone': 4, 'r': 255, 'g': 46, 'b': 99}
+    ]
 
 if not is_off:
     last_active = {
@@ -401,7 +409,8 @@ if not is_off:
         'speed': int('$speed'),
         'brightness': int('$brightness'),
         'direction': int('$direction'),
-        'color': {'r': int('$r'), 'g': int('$g'), 'b': int('$b')}
+        'color': {'r': int('$r'), 'g': int('$g'), 'b': int('$b')},
+        'zoneColors': zone_colors
     }
     state = {
         **last_active,
@@ -416,9 +425,12 @@ else:
         'speed': 4,
         'brightness': 100,
         'direction': 2,
-        'color': {'r': 0, 'g': 240, 'b': 255}
+        'color': {'r': 0, 'g': 240, b: 255},
+        'zoneColors': zone_colors
     }
     last_active = existing.get('lastActiveConfig') or fallback
+    if 'zoneColors' not in last_active and zone_colors:
+        last_active['zoneColors'] = zone_colors
     state = {
         'mode': 'off',
         'zone': 'all',
@@ -426,6 +438,7 @@ else:
         'brightness': 0,
         'direction': int('$direction'),
         'color': {'r': int('$r'), 'g': int('$g'), 'b': int('$b')},
+        'zoneColors': zone_colors,
         'isOff': True,
         'lastActiveConfig': last_active,
         'updatedAt': datetime.datetime.now(datetime.timezone.utc).isoformat()

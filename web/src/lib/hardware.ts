@@ -741,6 +741,23 @@ export async function applyRgb(input: RgbControlRequest): Promise<void> {
 
   const existingState = readLastRgbState();
 
+  const defaultZoneColors: Array<{ zone: 1 | 2 | 3 | 4; r: number; g: number; b: number }> = [
+    { zone: 1, r: 0, g: 240, b: 255 },
+    { zone: 2, r: 0, g: 184, b: 255 },
+    { zone: 3, r: 168, g: 85, b: 247 },
+    { zone: 4, r: 255, g: 46, b: 99 },
+  ];
+
+  const resolvedZoneColors =
+    input.zoneColors && input.zoneColors.length > 0
+      ? input.zoneColors
+      : existingState?.zoneColors && existingState.zoneColors.length > 0
+        ? existingState.zoneColors
+        : existingState?.lastActiveConfig?.zoneColors &&
+            existingState.lastActiveConfig.zoneColors.length > 0
+          ? existingState.lastActiveConfig.zoneColors
+          : defaultZoneColors;
+
   if (input.mode === "off" || input.brightness === 0) {
     const res = await runCmd("python3", [script, "-b", "0"]);
     if (!res.ok) throw new Error(res.stderr || "Failed to turn off RGB backlight");
@@ -752,11 +769,15 @@ export async function applyRgb(input: RgbControlRequest): Promise<void> {
       brightness: 100,
       direction: 2,
       color: { r: 0, g: 240, b: 255 },
+      zoneColors: resolvedZoneColors,
     };
 
-    const lastActiveConfig =
+    const lastActiveConfig: RgbControlRequest =
       existingState?.lastActiveConfig && existingState.lastActiveConfig.mode !== "off"
-        ? existingState.lastActiveConfig
+        ? {
+            ...existingState.lastActiveConfig,
+            zoneColors: existingState.lastActiveConfig.zoneColors ?? resolvedZoneColors,
+          }
         : existingState && existingState.mode !== "off" && existingState.brightness > 0
           ? {
               mode: existingState.mode,
@@ -765,7 +786,7 @@ export async function applyRgb(input: RgbControlRequest): Promise<void> {
               brightness: existingState.brightness,
               direction: existingState.direction,
               color: existingState.color,
-              zoneColors: existingState.zoneColors,
+              zoneColors: resolvedZoneColors,
             }
           : fallbackActive;
 
@@ -776,7 +797,7 @@ export async function applyRgb(input: RgbControlRequest): Promise<void> {
       brightness: 0,
       direction: input.direction ?? 2,
       color: input.color ?? { r: 0, g: 240, b: 255 },
-      zoneColors: input.zoneColors,
+      zoneColors: resolvedZoneColors,
       isOff: true,
       lastActiveConfig,
       updatedAt: new Date().toISOString(),
@@ -792,7 +813,7 @@ export async function applyRgb(input: RgbControlRequest): Promise<void> {
     brightness: input.brightness,
     direction: input.direction ?? 2,
     color: input.color,
-    zoneColors: input.zoneColors,
+    zoneColors: resolvedZoneColors,
   };
 
   saveLastRgbState({
@@ -803,8 +824,11 @@ export async function applyRgb(input: RgbControlRequest): Promise<void> {
   });
 
   if (input.mode === "static") {
-    if (input.zoneColors && input.zoneColors.length > 0 && input.zone === "all") {
-      for (const zc of input.zoneColors) {
+    if (resolvedZoneColors && resolvedZoneColors.length > 0) {
+      for (const zc of resolvedZoneColors) {
+        if (input.zone && input.zone !== "all" && zc.zone !== input.zone) {
+          continue;
+        }
         const res = await runCmd("python3", [
           script,
           "-m",

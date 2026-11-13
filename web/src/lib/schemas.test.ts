@@ -97,6 +97,12 @@ describe("Zod Hardware Control Schemas", () => {
       brightness: 0,
       direction: 2,
       color: { r: 0, g: 255, b: 255 },
+      zoneColors: [
+        { zone: 1, r: 0, g: 240, b: 255 },
+        { zone: 2, r: 0, g: 184, b: 255 },
+        { zone: 3, r: 168, g: 85, b: 247 },
+        { zone: 4, r: 255, g: 46, b: 99 },
+      ],
       isOff: true,
       lastActiveConfig: {
         mode: "wave",
@@ -105,12 +111,21 @@ describe("Zod Hardware Control Schemas", () => {
         brightness: 100,
         direction: 2,
         color: { r: 0, g: 240, b: 255 },
+        zoneColors: [
+          { zone: 1, r: 0, g: 240, b: 255 },
+          { zone: 2, r: 0, g: 184, b: 255 },
+          { zone: 3, r: 168, g: 85, b: 247 },
+          { zone: 4, r: 255, g: 46, b: 99 },
+        ],
       },
     };
     const parsedOff = RgbSavedStateSchema.parse(offState);
     expect(parsedOff.isOff).toBe(true);
     expect(parsedOff.mode).toBe("off");
     expect(parsedOff.lastActiveConfig?.mode).toBe("wave");
+    expect(parsedOff.zoneColors).toHaveLength(4);
+    expect(parsedOff.lastActiveConfig?.zoneColors).toHaveLength(4);
+    expect(parsedOff.zoneColors?.[3].r).toBe(255);
   });
 
   test("RgbProfileActionSchema rejects unsafe profile names", () => {

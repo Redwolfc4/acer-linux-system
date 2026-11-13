@@ -157,6 +157,7 @@ export function VisualRgbKeyboard() {
   const setSelectedZone = useAcerStore((s) => s.setSelectedZone);
   const zoneColors = useAcerStore((s) => s.zoneColors);
   const setZoneColor = useAcerStore((s) => s.setZoneColor);
+  const setAllZoneColors = useAcerStore((s) => s.setAllZoneColors);
   const rgbBrightness = useAcerStore((s) => s.rgbBrightness);
   const setRgbBrightness = useAcerStore((s) => s.setRgbBrightness);
   const rgbSpeed = useAcerStore((s) => s.rgbSpeed);
@@ -180,7 +181,9 @@ export function VisualRgbKeyboard() {
   useEffect(() => {
     if (hasHydratedRgb || !profilesQuery.data) return;
     const current = profilesQuery.data.currentState;
+    const lastActive = current?.lastActiveConfig || profilesQuery.data.lastActiveConfig;
     if (current) {
+      const resolvedZoneColors = current.zoneColors ?? lastActive?.zoneColors;
       applyLoadedRgbConfig({
         mode: current.mode,
         brightness: current.brightness,
@@ -188,10 +191,9 @@ export function VisualRgbKeyboard() {
         direction: current.direction,
         zone: current.zone,
         color: current.color,
-        zoneColors: current.zoneColors,
+        zoneColors: resolvedZoneColors,
       });
 
-      const lastActive = current.lastActiveConfig || profilesQuery.data.lastActiveConfig;
       if (lastActive) {
         setLastActiveRgb({
           mode: (lastActive.mode === "off" ? "wave" : lastActive.mode) as Exclude<RgbMode, "off">,
@@ -216,7 +218,11 @@ export function VisualRgbKeyboard() {
   const isOff = rgbMode === "off" || rgbBrightness === 0;
   const animSeconds = Math.max(0.6, 5.2 - rgbSpeed * 0.5).toFixed(2);
 
-  const applyToHardware = (overrideMode?: RgbMode, overrideBrightness?: number) => {
+  const applyToHardware = (
+    overrideMode?: RgbMode,
+    overrideBrightness?: number,
+    overrideZoneColors?: Record<1 | 2 | 3 | 4, string>
+  ) => {
     const modeToUse = overrideMode ?? rgbMode;
     const brightnessToUse =
       overrideBrightness !== undefined
@@ -224,7 +230,15 @@ export function VisualRgbKeyboard() {
         : modeToUse === "off"
           ? 0
           : rgbBrightness;
-    const primaryColor = hexToRgb(activeHex);
+    const activeColors = overrideZoneColors ?? zoneColors;
+    const primaryColor = hexToRgb(
+      selectedZone === "all" ? activeColors[1] : activeColors[selectedZone]
+    );
+
+    const allZoneColorsList = ([1, 2, 3, 4] as const).map((z) => ({
+      zone: z,
+      ...hexToRgb(activeColors[z]),
+    }));
 
     rgbMutation.mutate({
       mode: modeToUse,
@@ -233,32 +247,27 @@ export function VisualRgbKeyboard() {
       brightness: brightnessToUse,
       direction: rgbDirection,
       color: primaryColor,
-      zoneColors:
-        modeToUse === "static"
-          ? ([1, 2, 3, 4] as const).map((z) => ({
-              zone: z,
-              ...hexToRgb(zoneColors[z]),
-            }))
-          : undefined,
+      zoneColors: allZoneColorsList,
     });
   };
 
   const handleTogglePower = () => {
     if (!isOff) {
       // Matikan lampu: simpan konfigurasi aktif terakhir terlebih dahulu
-      setLastActiveRgb({
+      const currentActiveConfig = {
         mode: rgbMode,
-        brightness: rgbBrightness > 0 ? rgbBrightness : 100,
+        brightness: rgbBrightness > 0 ? rgbBrightness : (lastActiveRgb?.brightness || 100),
         speed: rgbSpeed,
         direction: rgbDirection,
         selectedZone,
-        zoneColors,
-      });
+        zoneColors: { ...zoneColors },
+      };
+      setLastActiveRgb(currentActiveConfig);
       setRgbMode("off");
       setRgbBrightness(0);
-      applyToHardware("off", 0);
+      applyToHardware("off", 0, zoneColors);
     } else {
-      // Nyalakan lampu: baca dan pulihkan pengaturan sebelumnya!
+      // Nyalakan lampu: baca dan pulihkan pengaturan sebelumnya secara presisi!
       const targetMode = lastActiveRgb?.mode ?? "wave";
       const targetBrightness =
         lastActiveRgb?.brightness && lastActiveRgb.brightness > 0
@@ -274,10 +283,15 @@ export function VisualRgbKeyboard() {
       setRgbSpeed(targetSpeed);
       setRgbDirection(targetDirection);
       if (targetZone) setSelectedZone(targetZone);
+      setAllZoneColors(targetColors);
 
       const primaryColor = hexToRgb(
         targetZone === "all" ? targetColors[1] : targetColors[targetZone]
       );
+      const allZoneColorsList = ([1, 2, 3, 4] as const).map((z) => ({
+        zone: z,
+        ...hexToRgb(targetColors[z]),
+      }));
 
       rgbMutation.mutate(
         {
@@ -287,13 +301,7 @@ export function VisualRgbKeyboard() {
           brightness: targetBrightness,
           direction: targetDirection,
           color: primaryColor,
-          zoneColors:
-            targetMode === "static"
-              ? ([1, 2, 3, 4] as const).map((z) => ({
-                  zone: z,
-                  ...hexToRgb(targetColors[z]),
-                }))
-              : undefined,
+          zoneColors: allZoneColorsList,
         },
         {
           onSuccess: () => {
@@ -646,9 +654,11 @@ export function VisualRgbKeyboard() {
                   rgbBrightness > 0
                     ? rgbBrightness
                     : (lastActiveRgb.brightness || 100);
+                const targetColors = lastActiveRgb?.zoneColors ?? zoneColors;
                 setRgbMode(targetMode);
                 setRgbBrightness(targetBrightness);
-                applyToHardware(targetMode, targetBrightness);
+                setAllZoneColors(targetColors);
+                applyToHardware(targetMode, targetBrightness, targetColors);
               } else {
                 applyToHardware();
               }
@@ -696,6 +706,10 @@ export function VisualRgbKeyboard() {
                       brightness: rgbBrightness,
                       direction: rgbDirection,
                       color: rgb,
+                      zoneColors: ([1, 2, 3, 4] as const).map((z) => ({
+                        zone: z,
+                        ...hexToRgb(zoneColors[z]),
+                      })),
                     },
                   },
                   { onSuccess: () => setProfileName("") }

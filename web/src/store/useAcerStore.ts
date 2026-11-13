@@ -41,6 +41,7 @@ interface AcerStoreState {
   setSelectedZone: (zone: "all" | 1 | 2 | 3 | 4) => void;
   zoneColors: Record<1 | 2 | 3 | 4, string>;
   setZoneColor: (zone: "all" | 1 | 2 | 3 | 4, hex: string) => void;
+  setAllZoneColors: (colors: Partial<Record<1 | 2 | 3 | 4, string>>) => void;
   rgbBrightness: number;
   setRgbBrightness: (b: number) => void;
   rgbSpeed: number;
@@ -148,15 +149,32 @@ export const useAcerStore = create<AcerStoreState>((set) => ({
   },
   setZoneColor: (zone, hex) =>
     set((state) => {
-      if (zone === "all") {
-        return {
-          zoneColors: { 1: hex, 2: hex, 3: hex, 4: hex },
-        };
-      }
+      const nextColors =
+        zone === "all"
+          ? { 1: hex, 2: hex, 3: hex, 4: hex }
+          : {
+              ...state.zoneColors,
+              [zone]: hex,
+            };
       return {
-        zoneColors: {
-          ...state.zoneColors,
-          [zone]: hex,
+        zoneColors: nextColors,
+        lastActiveRgb: {
+          ...state.lastActiveRgb,
+          zoneColors: nextColors,
+        },
+      };
+    }),
+  setAllZoneColors: (colors) =>
+    set((state) => {
+      const nextColors = {
+        ...state.zoneColors,
+        ...colors,
+      };
+      return {
+        zoneColors: nextColors,
+        lastActiveRgb: {
+          ...state.lastActiveRgb,
+          zoneColors: nextColors,
         },
       };
     }),
@@ -198,7 +216,7 @@ export const useAcerStore = create<AcerStoreState>((set) => ({
         for (const zc of cfg.zoneColors) {
           nextColors[zc.zone] = rgbToHex(zc.r, zc.g, zc.b);
         }
-      } else if (cfg.color) {
+      } else if (cfg.mode === "static" && cfg.color) {
         const hex = rgbToHex(cfg.color.r, cfg.color.g, cfg.color.b);
         if (cfg.zone && cfg.zone !== "all") {
           nextColors[cfg.zone] = hex;
@@ -222,7 +240,10 @@ export const useAcerStore = create<AcerStoreState>((set) => ({
             selectedZone: nextZone,
             zoneColors: nextColors,
           }
-        : state.lastActiveRgb;
+        : {
+            ...state.lastActiveRgb,
+            ...(cfg.zoneColors && cfg.zoneColors.length > 0 ? { zoneColors: nextColors } : {}),
+          };
 
       return {
         rgbMode: nextMode,
