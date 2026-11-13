@@ -28,6 +28,34 @@ const WMI_BATTERY_DIR = "/sys/bus/wmi/drivers/acer-wmi-battery";
 const BAT1_DIR = "/sys/class/power_supply/BAT1";
 const MODPROBE_BAT_CONF = "/etc/modprobe.d/acer-wmi-battery.conf";
 const FACER_DEV = "/dev/acer-gkbbl-0";
+const DRM_DIR = "/sys/class/drm";
+
+/** Baca VRAM AMD iGPU dari sysfs (vendor 0x1002 = AMD) */
+function readAmdGpuMemory(): { vramUsedMb: number; vramTotalMb: number; gttUsedMb: number } | null {
+  try {
+    const cards = readdirSync(DRM_DIR).filter((c) => /^card\d+$/.test(c));
+    for (const card of cards) {
+      const deviceDir = path.join(DRM_DIR, card, "device");
+      const vendorFile = path.join(deviceDir, "vendor");
+      if (!existsSync(vendorFile)) continue;
+      const vendor = readFileSync(vendorFile, "utf8").trim();
+      if (vendor !== "0x1002") continue; // bukan AMD
+
+      const readMb = (file: string): number => {
+        try {
+          return Math.round(Number(readFileSync(path.join(deviceDir, file), "utf8").trim()) / 1024 / 1024);
+        } catch { return 0; }
+      };
+
+      return {
+        vramUsedMb: readMb("mem_info_vram_used"),
+        vramTotalMb: readMb("mem_info_vram_total"),
+        gttUsedMb: readMb("mem_info_gtt_used"),
+      };
+    }
+  } catch { /* sysfs tidak tersedia */ }
+  return null;
+}
 
 let prevCpuIdle = 0;
 let prevCpuTotal = 0;
@@ -534,6 +562,7 @@ export async function getTelemetry(): Promise<TelemetryResponse> {
       currentMode: envyRes.ok ? envyRes.stdout.trim() : "unknown",
       devices,
       nvidiaStats,
+      amdStats: readAmdGpuMemory(),
     },
   };
 }

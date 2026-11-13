@@ -249,6 +249,13 @@ export const TelemetryResponseSchema = z.object({
         memoryTotalMb: z.number(),
       })
       .nullable(),
+    amdStats: z
+      .object({
+        vramUsedMb: z.number(),
+        vramTotalMb: z.number(),
+        gttUsedMb: z.number(),
+      })
+      .nullable(),
   }),
 });
 

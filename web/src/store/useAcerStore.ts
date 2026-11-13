@@ -8,6 +8,8 @@ export interface TelemetrySample {
   cpuTemp: number;
   gpuTemp: number;
   nvidiaTemp: number | null;
+  nvidiaUtil: number | null;
+  nvidiaMemUsedMb: number | null;
   cpuFanSpeed: number;
   gpuFanSpeed: number;
   cpuRpm: number;
@@ -115,6 +117,8 @@ export const useAcerStore = create<AcerStoreState>((set) => ({
         cpuTemp: cpuFan?.temperature ?? 0,
         gpuTemp: gpuFan?.temperature ?? 0,
         nvidiaTemp: t.gpu.nvidiaStats?.temperature ?? null,
+        nvidiaUtil: t.gpu.nvidiaStats?.utilization ?? null,
+        nvidiaMemUsedMb: t.gpu.nvidiaStats?.memoryUsedMb ?? null,
         cpuFanSpeed: cpuFan?.currentSpeed ?? 0,
         gpuFanSpeed: gpuFan?.currentSpeed ?? 0,
         cpuRpm: cpuFan?.rpm ?? 0,
