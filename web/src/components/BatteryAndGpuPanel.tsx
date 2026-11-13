@@ -24,25 +24,25 @@ const GPU_MODES: Array<{
   subtitle: string;
   badge: string;
 }> = [
-  {
-    mode: "hybrid",
-    title: "Hybrid Mode",
-    subtitle: "iGPU AMD hemat daya + NVIDIA RTX 3080 On-Demand (Prime Offload)",
-    badge: "Recommended",
-  },
-  {
-    mode: "integrated",
-    title: "Integrated (iGPU)",
-    subtitle: "Hanya AMD Radeon Vega — matikan dGPU untuk baterai maksimal",
-    badge: "Eco / Battery",
-  },
-  {
-    mode: "nvidia",
-    title: "NVIDIA Dedicated",
-    subtitle: "Full 100% RTX 3080 Mobile — performa maksimal & external display",
-    badge: "Max Perf",
-  },
-];
+    {
+      mode: "hybrid",
+      title: "Hybrid Mode",
+      subtitle: "iGPU AMD hemat daya + NVIDIA RTX 3080 On-Demand (Prime Offload)",
+      badge: "Recommended",
+    },
+    {
+      mode: "integrated",
+      title: "Integrated (iGPU)",
+      subtitle: "Hanya AMD Radeon Vega — matikan dGPU untuk baterai maksimal",
+      badge: "Eco / Battery",
+    },
+    {
+      mode: "nvidia",
+      title: "NVIDIA Dedicated",
+      subtitle: "Full 100% RTX 3080 Mobile — performa maksimal & external display",
+      badge: "Max Perf",
+    },
+  ];
 
 export function BatteryAndGpuPanel({ telemetry }: BatteryAndGpuPanelProps) {
   const batteryMutation = useBatteryMutation();
@@ -76,11 +76,10 @@ export function BatteryAndGpuPanel({ telemetry }: BatteryAndGpuPanelProps) {
             </div>
           </div>
           <span
-            className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${
-              healthActive
-                ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300"
-                : "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
-            }`}
+            className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${healthActive
+              ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300"
+              : "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
+              }`}
           >
             {healthActive ? "80% LIMIT ON" : "100% FULL"}
           </span>
@@ -111,11 +110,10 @@ export function BatteryAndGpuPanel({ telemetry }: BatteryAndGpuPanelProps) {
 
           <div className="relative h-4 w-full overflow-hidden rounded-full bg-slate-200 ring-1 ring-slate-300 dark:bg-slate-900 dark:ring-slate-800">
             <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                healthActive
-                  ? "bg-gradient-to-r from-emerald-500 to-cyan-500"
-                  : "bg-gradient-to-r from-amber-500 to-emerald-500"
-              }`}
+              className={`h-full rounded-full transition-all duration-500 ${healthActive
+                ? "bg-gradient-to-r from-emerald-500 to-cyan-500"
+                : "bg-gradient-to-r from-amber-500 to-emerald-500"
+                }`}
               style={{ width: `${Math.max(4, Math.min(100, capacity))}%` }}
             />
             {/* 80% limit marker */}
@@ -152,16 +150,16 @@ export function BatteryAndGpuPanel({ telemetry }: BatteryAndGpuPanelProps) {
                     {isCharging
                       ? `Estimasi Pengisian (Target ${bat?.targetPercent ?? (healthActive ? 80 : 100)}%)`
                       : isDischarging
-                      ? "Estimasi Penggunaan Baterai"
-                      : "Status Daya AC"}
+                        ? "Estimasi Penggunaan Baterai"
+                        : "Status Daya AC"}
                   </div>
                   <div className="text-sm font-bold text-slate-900 dark:text-white">
                     {bat?.estimateFormatted ??
                       (isCharging
                         ? "Menghitung pengisian..."
                         : isDischarging
-                        ? "Menghitung sisa waktu..."
-                        : bat?.status ?? "--")}
+                          ? "Menghitung sisa waktu..."
+                          : bat?.status ?? "--")}
                   </div>
                 </div>
               </div>
@@ -171,13 +169,12 @@ export function BatteryAndGpuPanel({ telemetry }: BatteryAndGpuPanelProps) {
                 <div className="text-right">
                   <span className="text-[10px] text-slate-400">Laju Daya</span>
                   <div
-                    className={`font-mono text-xs font-bold ${
-                      isDischarging
-                        ? "text-amber-600 dark:text-amber-400"
-                        : isCharging
+                    className={`font-mono text-xs font-bold ${isDischarging
+                      ? "text-amber-600 dark:text-amber-400"
+                      : isCharging
                         ? "text-emerald-600 dark:text-emerald-400"
                         : "text-cyan-600 dark:text-cyan-400"
-                    }`}
+                      }`}
                   >
                     {isDischarging ? "-" : "+"}
                     {bat.powerWatts} W
@@ -194,17 +191,16 @@ export function BatteryAndGpuPanel({ telemetry }: BatteryAndGpuPanelProps) {
                     Batas 80% (Cut-Off):
                   </span>
                   <span
-                    className={`text-[11px] font-semibold ${
-                      capacity >= 80
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-slate-800 dark:text-slate-200"
-                    }`}
+                    className={`text-[11px] font-semibold ${capacity >= 80
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-slate-800 dark:text-slate-200"
+                      }`}
                   >
                     {capacity >= 80
                       ? "Tercapai ✓"
                       : bat?.timeTo80Minutes !== null && bat?.timeTo80Minutes !== undefined
-                      ? `~${bat.timeTo80Minutes} mnt`
-                      : "--"}
+                        ? `~${bat.timeTo80Minutes} mnt`
+                        : "--"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between rounded-lg bg-white/80 px-2.5 py-1.5 shadow-2xs dark:bg-slate-950/60">
@@ -212,17 +208,16 @@ export function BatteryAndGpuPanel({ telemetry }: BatteryAndGpuPanelProps) {
                     Penuh 100%:
                   </span>
                   <span
-                    className={`text-[11px] font-semibold ${
-                      capacity >= 100
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-amber-600 dark:text-amber-300"
-                    }`}
+                    className={`text-[11px] font-semibold ${capacity >= 100
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-amber-600 dark:text-amber-300"
+                      }`}
                   >
                     {capacity >= 100
                       ? "Penuh ✓"
                       : bat?.timeToFullMinutes !== null && bat?.timeToFullMinutes !== undefined
-                      ? `~${bat.timeToFullMinutes} mnt`
-                      : "--"}
+                        ? `~${bat.timeToFullMinutes} mnt`
+                        : "--"}
                   </span>
                 </div>
               </div>
@@ -287,11 +282,10 @@ export function BatteryAndGpuPanel({ telemetry }: BatteryAndGpuPanelProps) {
               type="button"
               disabled={batteryMutation.isPending}
               onClick={() => batteryMutation.mutate({ healthMode: true })}
-              className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-bold transition shadow-2xs ${
-                healthActive
-                  ? "border-emerald-400/80 bg-emerald-50 text-emerald-800 dark:border-emerald-400/70 dark:bg-emerald-500/20 dark:text-emerald-200"
-                  : "border-slate-200 bg-white text-slate-700 hover:border-emerald-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-emerald-500/50"
-              }`}
+              className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-bold transition shadow-2xs ${healthActive
+                ? "border-emerald-400/80 bg-emerald-50 text-emerald-800 dark:border-emerald-400/70 dark:bg-emerald-500/20 dark:text-emerald-200"
+                : "border-slate-200 bg-white text-slate-700 hover:border-emerald-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-emerald-500/50"
+                }`}
             >
               <ShieldCheck className="h-4 w-4" /> Aktifkan Limit 80%
             </button>
@@ -299,11 +293,10 @@ export function BatteryAndGpuPanel({ telemetry }: BatteryAndGpuPanelProps) {
               type="button"
               disabled={batteryMutation.isPending}
               onClick={() => batteryMutation.mutate({ healthMode: false })}
-              className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-bold transition shadow-2xs ${
-                bat?.healthMode === false
-                  ? "border-amber-400/80 bg-amber-50 text-amber-800 dark:border-amber-400/70 dark:bg-amber-500/20 dark:text-amber-200"
-                  : "border-slate-200 bg-white text-slate-700 hover:border-amber-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-amber-500/50"
-              }`}
+              className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-bold transition shadow-2xs ${bat?.healthMode === false
+                ? "border-amber-400/80 bg-amber-50 text-amber-800 dark:border-amber-400/70 dark:bg-amber-500/20 dark:text-amber-200"
+                : "border-slate-200 bg-white text-slate-700 hover:border-amber-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-amber-500/50"
+                }`}
             >
               <Zap className="h-4 w-4" /> Cas Penuh 100%
             </button>
@@ -324,11 +317,10 @@ export function BatteryAndGpuPanel({ telemetry }: BatteryAndGpuPanelProps) {
               onClick={() =>
                 batteryMutation.mutate({ persistBoot: !(bat?.persistBoot ?? false) })
               }
-              className={`rounded-lg border px-3 py-1.5 text-xs font-bold shadow-2xs transition ${
-                bat?.persistBoot
-                  ? "border-emerald-400 bg-emerald-50 text-emerald-800 dark:border-emerald-500/50 dark:bg-emerald-500/20 dark:text-emerald-200"
-                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600"
-              }`}
+              className={`rounded-lg border px-3 py-1.5 text-xs font-bold shadow-2xs transition ${bat?.persistBoot
+                ? "border-emerald-400 bg-emerald-50 text-emerald-800 dark:border-emerald-500/50 dark:bg-emerald-500/20 dark:text-emerald-200"
+                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600"
+                }`}
             >
               {bat?.persistBoot ? "Boot Auto ON" : "Aktifkan Boot"}
             </button>
@@ -390,11 +382,10 @@ export function BatteryAndGpuPanel({ telemetry }: BatteryAndGpuPanelProps) {
                     { onSuccess: () => setRebootBanner(true) }
                   )
                 }
-                className={`w-full rounded-xl border p-3 text-left transition ${
-                  isActive
-                    ? "border-cyan-500 bg-cyan-50/80 shadow-xs ring-1 ring-cyan-500/40 dark:border-cyan-400/70 dark:bg-cyan-500/15 dark:shadow-cyan-500/10 dark:ring-0"
-                    : "border-slate-200 bg-slate-50/60 hover:border-slate-300 hover:bg-slate-100/60 dark:border-slate-800 dark:bg-slate-950/60 dark:hover:border-slate-700"
-                } disabled:opacity-60`}
+                className={`w-full rounded-xl border p-3 text-left transition ${isActive
+                  ? "border-cyan-500 bg-cyan-50/80 shadow-xs ring-1 ring-cyan-500/40 dark:border-cyan-400/70 dark:bg-cyan-500/15 dark:shadow-cyan-500/10 dark:ring-0"
+                  : "border-slate-200 bg-slate-50/60 hover:border-slate-300 hover:bg-slate-100/60 dark:border-slate-800 dark:bg-slate-950/60 dark:hover:border-slate-700"
+                  } disabled:opacity-60`}
               >
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-1.5 text-sm font-bold text-slate-900 dark:text-white">
@@ -404,13 +395,12 @@ export function BatteryAndGpuPanel({ telemetry }: BatteryAndGpuPanelProps) {
                     {item.title}
                   </span>
                   <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                      isSwitching
-                        ? "bg-blue-100 text-blue-800 dark:bg-blue-400/20 dark:text-blue-200"
-                        : isActive
-                          ? "bg-cyan-100 text-cyan-800 font-semibold dark:bg-cyan-400/20 dark:text-cyan-200"
-                          : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
-                    }`}
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isSwitching
+                      ? "bg-blue-100 text-blue-800 dark:bg-blue-400/20 dark:text-blue-200"
+                      : isActive
+                        ? "bg-cyan-100 text-cyan-800 font-semibold dark:bg-cyan-400/20 dark:text-cyan-200"
+                        : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                      }`}
                   >
                     {isSwitching ? "Mengganti…" : isActive ? "Aktif" : item.badge}
                   </span>

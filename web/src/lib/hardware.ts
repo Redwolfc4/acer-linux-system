@@ -754,7 +754,7 @@ export async function applyRgb(input: RgbControlRequest): Promise<void> {
       : existingState?.zoneColors && existingState.zoneColors.length > 0
         ? existingState.zoneColors
         : existingState?.lastActiveConfig?.zoneColors &&
-            existingState.lastActiveConfig.zoneColors.length > 0
+          existingState.lastActiveConfig.zoneColors.length > 0
           ? existingState.lastActiveConfig.zoneColors
           : defaultZoneColors;
 
@@ -775,19 +775,19 @@ export async function applyRgb(input: RgbControlRequest): Promise<void> {
     const lastActiveConfig: RgbControlRequest =
       existingState?.lastActiveConfig && existingState.lastActiveConfig.mode !== "off"
         ? {
-            ...existingState.lastActiveConfig,
-            zoneColors: existingState.lastActiveConfig.zoneColors ?? resolvedZoneColors,
-          }
+          ...existingState.lastActiveConfig,
+          zoneColors: existingState.lastActiveConfig.zoneColors ?? resolvedZoneColors,
+        }
         : existingState && existingState.mode !== "off" && existingState.brightness > 0
           ? {
-              mode: existingState.mode,
-              zone: existingState.zone,
-              speed: existingState.speed,
-              brightness: existingState.brightness,
-              direction: existingState.direction,
-              color: existingState.color,
-              zoneColors: resolvedZoneColors,
-            }
+            mode: existingState.mode,
+            zone: existingState.zone,
+            speed: existingState.speed,
+            brightness: existingState.brightness,
+            direction: existingState.direction,
+            color: existingState.color,
+            zoneColors: resolvedZoneColors,
+          }
           : fallbackActive;
 
     saveLastRgbState({
