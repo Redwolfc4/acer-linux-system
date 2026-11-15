@@ -568,6 +568,13 @@ export async function getTelemetry(): Promise<TelemetryResponse> {
 }
 
 export async function controlFan(input: FanControlRequest): Promise<void> {
+  const socketPath = "/run/nbfc_service.socket";
+  if (!existsSync(socketPath)) {
+    // Coba hidupkan nbfc_service secara otomatis jika socket belum ada
+    await runSudo(["systemctl", "start", "nbfc_service"], 10000);
+    await new Promise((r) => setTimeout(r, 1200));
+  }
+
   const baseArgs = ["nbfc", "set"];
   if (input.mode === "auto") {
     baseArgs.push("-a");
@@ -585,7 +592,10 @@ export async function controlFan(input: FanControlRequest): Promise<void> {
 
   const res = await runSudo(baseArgs);
   if (!res.ok) {
-    throw new Error(res.stderr || "Failed to update fan speed via nbfc");
+    if (!existsSync(socketPath)) {
+      throw new Error("Layanan nbfc_service belum aktif. Silakan tunggu beberapa detik dan coba lagi.");
+    }
+    throw new Error(res.stderr || "Gagal mengatur kecepatan kipas via nbfc");
   }
 }
 

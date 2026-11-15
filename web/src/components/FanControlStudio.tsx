@@ -15,10 +15,15 @@ interface FanControlStudioProps {
   telemetry?: TelemetryResponse;
 }
 
-function getSpinDuration(speedPct: number): string {
+function getSpinDuration(speedPct: number, rpm = 0): string {
+  if (rpm > 50) {
+    // RPM-based duration: 1500 RPM -> ~1.4s, 3000 RPM -> ~0.7s, 5000+ RPM -> ~0.35s
+    const sec = Math.max(0.3, Math.min(2.2, (3600 / Math.max(1200, rpm)) * 0.65));
+    return `${sec.toFixed(2)}s`;
+  }
   if (speedPct <= 1) return "0s";
   const clamped = Math.max(5, Math.min(100, speedPct));
-  const seconds = 2.4 - (clamped / 100) * 2.18;
+  const seconds = 2.2 - (clamped / 100) * 1.85;
   return `${seconds.toFixed(2)}s`;
 }
 
@@ -27,84 +32,168 @@ function getTempAccent(temp: number, isLight = false): {
   text: string;
   glow: string;
   blade: string;
+  badge: string;
 } {
   if (temp >= 80) {
     return {
-      ring: isLight ? "border-rose-400/90" : "border-rose-500/60",
+      ring: isLight ? "border-rose-400/90" : "border-rose-500/70",
       text: isLight ? "text-rose-600" : "text-rose-400",
-      glow: isLight ? "shadow-[0_0_20px_rgba(244,63,94,0.18)]" : "shadow-[0_0_28px_rgba(244,63,94,0.28)]",
+      glow: isLight ? "shadow-[0_0_24px_rgba(244,63,94,0.22)]" : "shadow-[0_0_32px_rgba(244,63,94,0.32)] ring-1 ring-rose-500/40",
       blade: isLight ? "#e11d48" : "#fb7185",
+      badge: "border-rose-500/40 bg-rose-500/15 text-rose-300",
     };
   }
   if (temp >= 62) {
     return {
-      ring: isLight ? "border-amber-400/90" : "border-amber-500/60",
+      ring: isLight ? "border-amber-400/90" : "border-amber-500/70",
       text: isLight ? "text-amber-700" : "text-amber-300",
-      glow: isLight ? "shadow-[0_0_18px_rgba(245,158,11,0.16)]" : "shadow-[0_0_24px_rgba(245,158,11,0.22)]",
+      glow: isLight ? "shadow-[0_0_22px_rgba(245,158,11,0.2)]" : "shadow-[0_0_28px_rgba(245,158,11,0.26)] ring-1 ring-amber-500/40",
       blade: isLight ? "#d97706" : "#fbbf24",
+      badge: "border-amber-500/40 bg-amber-500/15 text-amber-300",
     };
   }
   return {
-    ring: isLight ? "border-cyan-400/90" : "border-cyan-500/50",
+    ring: isLight ? "border-cyan-400/90" : "border-cyan-500/60",
     text: isLight ? "text-cyan-700" : "text-cyan-300",
-    glow: isLight ? "shadow-[0_0_18px_rgba(14,165,233,0.16)]" : "shadow-[0_0_24px_rgba(34,211,238,0.2)]",
+    glow: isLight ? "shadow-[0_0_22px_rgba(14,165,233,0.2)]" : "shadow-[0_0_28px_rgba(34,211,238,0.25)] ring-1 ring-cyan-500/40",
     blade: isLight ? "#0891b2" : "#22d3ee",
+    badge: "border-cyan-500/40 bg-cyan-500/15 text-cyan-300",
   };
 }
 
+/**
+ * 3D AeroBlade Gaming Turbine SVG
+ * Bilah aerodinamis futuristik khas Acer Predator/Nitro dengan center hub berventilasi
+ */
 function AnimatedTurbineSvg({
   speed,
+  rpm = 0,
   color,
+  side = "left",
   isLight = false,
 }: {
   speed: number;
+  rpm?: number;
   color: string;
+  side?: "left" | "right";
   isLight?: boolean;
 }) {
-  const duration = getSpinDuration(speed);
-  const isSpinning = speed > 1;
-  const blades = [0, 40, 80, 120, 160, 200, 240, 280, 320];
+  const duration = getSpinDuration(speed, rpm);
+  const isSpinning = (rpm > 50) || speed > 1;
+  const isHighSpeed = speed >= 75 || rpm >= 3500;
+  // 11 bilah melengkung tajam (AeroBlade 3D styling)
+  const blades = [0, 32.7, 65.4, 98.1, 130.8, 163.5, 196.2, 228.9, 261.6, 294.3, 327];
 
   return (
-    <div className="relative flex h-24 w-24 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white shadow-2xs dark:border-slate-700/80 dark:bg-slate-950/90">
+    <div
+      className={`relative flex h-28 w-28 shrink-0 items-center justify-center rounded-full border transition-all duration-300 ${
+        isLight
+          ? "border-slate-300 bg-gradient-to-br from-slate-100 via-white to-slate-200 shadow-md"
+          : "border-slate-700/80 bg-gradient-to-br from-slate-900 via-[#070b14] to-slate-950 shadow-2xl"
+      }`}
+      style={{
+        boxShadow: isSpinning
+          ? `0 0 20px ${color}33, inset 0 0 12px ${color}22`
+          : undefined,
+      }}
+    >
+      {/* Outer Glow Halo saat Turbo / High Speed */}
+      {isHighSpeed && (
+        <span
+          className="pointer-events-none absolute -inset-1 rounded-full animate-fan-pulse"
+          style={{
+            boxShadow: `0 0 24px ${color}66`,
+            border: `1px solid ${color}88`,
+          }}
+        />
+      )}
+
+      {/* Turbine Shroud Rim with Ticks */}
       <svg
         viewBox="0 0 100 100"
-        className={`h-20 w-20 ${isSpinning ? "animate-fan-spin" : ""}`}
-        style={isSpinning ? { animationDuration: duration } : undefined}
+        className="absolute inset-0 h-full w-full pointer-events-none"
       >
         <circle
           cx="50"
           cy="50"
-          r="45"
+          r="47.5"
           fill="none"
-          stroke={isLight ? "rgba(100,116,139,0.2)" : "rgba(148,163,184,0.18)"}
-          strokeWidth="2"
+          stroke={isLight ? "rgba(100,116,139,0.25)" : "rgba(148,163,184,0.18)"}
+          strokeWidth="1.5"
+          strokeDasharray="2 3"
         />
-        {blades.map((angle) => (
-          <path
-            key={angle}
-            d="M50,50 C54,34 62,19 72,13 C62,10 52,14 48,26 C46,35 47,43 50,50 Z"
-            fill={color}
-            fillOpacity={isLight ? "0.9" : "0.82"}
-            transform={`rotate(${angle} 50 50)`}
-          />
-        ))}
         <circle
           cx="50"
           cy="50"
-          r="11"
-          fill={isLight ? "#f8fafc" : "#0f172a"}
+          r="44"
+          fill="none"
           stroke={color}
-          strokeWidth="2.5"
+          strokeWidth="1"
+          strokeOpacity={isSpinning ? "0.45" : "0.2"}
         />
-        <circle cx="50" cy="50" r="4" fill={color} />
       </svg>
-      {speed >= 85 && (
-        <span
-          className="pointer-events-none absolute inset-0 rounded-full animate-pulse"
-          style={{ boxShadow: `inset 0 0 16px ${color}40` }}
+
+      {/* Spinning Blades Assembly */}
+      <svg
+        viewBox="0 0 100 100"
+        className={`h-24 w-24 ${isSpinning ? "animate-fan-spin" : ""}`}
+        style={{
+          animationDuration: isSpinning ? duration : undefined,
+          transformOrigin: "50% 50%",
+        }}
+      >
+        <defs>
+          <linearGradient id={`blade-grad-${side}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={color} stopOpacity="0.95" />
+            <stop offset="60%" stopColor={color} stopOpacity="0.75" />
+            <stop offset="100%" stopColor={isLight ? "#475569" : "#0f172a"} stopOpacity="0.8" />
+          </linearGradient>
+        </defs>
+
+        {/* 11 AeroBlade curved wings */}
+        {blades.map((angle) => (
+          <path
+            key={angle}
+            d="M50,50 C55,32 66,16 78,11 C68,7 54,12 46,24 C41,33 46,43 50,50 Z"
+            fill={`url(#blade-grad-${side})`}
+            transform={`rotate(${angle} 50 50)`}
+          />
+        ))}
+
+        {/* Outer Hub Ring */}
+        <circle
+          cx="50"
+          cy="50"
+          r="13"
+          fill={isLight ? "#e2e8f0" : "#0a0f1d"}
+          stroke={color}
+          strokeWidth="2"
         />
-      )}
+
+        {/* Center Metal Cap */}
+        <circle
+          cx="50"
+          cy="50"
+          r="7"
+          fill={isLight ? "#f8fafc" : "#1e293b"}
+          stroke={isLight ? "#cbd5e1" : "#334155"}
+          strokeWidth="1"
+        />
+
+        {/* Center LED Dot */}
+        <circle
+          cx="50"
+          cy="50"
+          r="3"
+          fill={color}
+          className={isSpinning ? "animate-pulse" : ""}
+        />
+      </svg>
+
+      {/* RPM Status Tag Overlay di Sudut Kiri Bawah Turbin */}
+      <div className="pointer-events-none absolute bottom-1 right-1 rounded bg-black/60 px-1 py-0.5 text-[9px] font-mono font-bold text-white/90 backdrop-blur-xs">
+        {rpm > 0 ? `${rpm}` : "0"}
+      </div>
     </div>
   );
 }
@@ -134,7 +223,7 @@ export function FanControlStudio({ telemetry }: FanControlStudioProps) {
   const [sensorDrafts, setSensorDrafts] = useState<
     Record<0 | 1, { sensor: string; algorithm: SensorAlgorithm }>
   >({
-    0: { sensor: "@CPU", algorithm: "Average" },
+    0: { sensor: "k10temp", algorithm: "Average" },
     1: { sensor: "amdgpu", algorithm: "Average" },
   });
 
@@ -144,11 +233,11 @@ export function FanControlStudio({ telemetry }: FanControlStudioProps) {
       const next = { ...prev };
       for (const m of sensorsQuery.data.mappings) {
         const idx = m.fanIndex;
-        const firstSensor = m.sensors[0] || "@CPU";
+        const firstSensor = m.sensors[0] || (idx === 0 ? "k10temp" : "amdgpu");
         const algo =
           m.algorithm === "Min" || m.algorithm === "Max" ? m.algorithm : "Average";
         next[idx] = {
-          sensor: m.isDefaultSensors ? "@CPU" : firstSensor,
+          sensor: m.isDefaultSensors ? (idx === 0 ? "k10temp" : "amdgpu") : firstSensor,
           algorithm: algo,
         };
       }
@@ -170,10 +259,14 @@ export function FanControlStudio({ telemetry }: FanControlStudioProps) {
     title: string,
     sideTag: string,
     targetKey: "cpu" | "gpu",
-    seriesValues: number[]
+    seriesValues: number[],
+    colorSide: "left" | "right"
   ) => {
     const temp = fan?.temperature ?? 0;
     const speed = fan?.currentSpeed ?? 0;
+    const rpm = fan?.rpm ?? 0;
+    const maxRpm = fan?.maxRpm ?? 6122;
+    const rpmPct = Math.min(100, Math.round((rpm / maxRpm) * 100));
     const accent = getTempAccent(temp, isLight);
     const isSelected = fanTarget === targetKey || fanTarget === "both";
     const mapping = sensorsQuery.data?.mappings.find((m) => m.fanIndex === index);
@@ -181,73 +274,122 @@ export function FanControlStudio({ telemetry }: FanControlStudioProps) {
     return (
       <div
         onClick={() => setFanTarget(targetKey)}
-        className={`cursor-pointer rounded-2xl border bg-white p-4 transition-all duration-200 shadow-xs dark:bg-[#0b1019]/95 dark:shadow-none ${
-          isSelected
-            ? `${accent.ring} ${accent.glow}`
-            : "border-slate-200 opacity-90 hover:border-slate-300 dark:border-slate-800/80 dark:opacity-85 dark:hover:border-slate-700"
+        className={`group relative cursor-pointer overflow-hidden rounded-2xl border p-4.5 transition-all duration-300 shadow-xs ${
+          isLight
+            ? isSelected
+              ? `bg-white ${accent.ring} ${accent.glow}`
+              : "border-slate-200 bg-white hover:border-slate-300"
+            : isSelected
+              ? `bg-gradient-to-br from-[#0c1220] via-[#090d16] to-[#07090f] ${accent.ring} ${accent.glow}`
+              : "border-slate-800/80 bg-[#0a0e17]/90 hover:border-slate-700/90"
         }`}
       >
-        <div className="flex items-center justify-between gap-3">
+        {/* Subtle Gaming Ambient Background Glow */}
+        <div
+          className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full blur-3xl opacity-20 transition-opacity group-hover:opacity-35"
+          style={{ backgroundColor: accent.blade }}
+        />
+
+        {/* Card Header */}
+        <div className="relative flex items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+              <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:border-slate-700/60 dark:bg-slate-800/80 dark:text-cyan-300">
                 {sideTag}
               </span>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">{title}</h3>
+              <h3 className="text-sm font-extrabold text-slate-900 tracking-tight dark:text-white">
+                {title}
+              </h3>
             </div>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Sensor aktif:{" "}
               <span className="font-mono font-medium text-cyan-700 dark:text-cyan-300">
-                {mapping?.sensors.join(", ") ?? (index === 0 ? "@CPU" : "amdgpu")}
+                {mapping?.sensors.join(", ") ?? (index === 0 ? "k10temp" : "amdgpu")}
               </span>
             </p>
           </div>
-          <span
-            className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${
-              fan?.autoControl
-                ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300"
-                : "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
-            }`}
-          >
-            {fan?.autoControl ? "AUTO" : "MANUAL"}
-          </span>
+
+          <div className="flex items-center gap-2">
+            <span
+              className={`rounded-full border px-2.5 py-0.5 text-[11px] font-bold tracking-wide uppercase ${
+                fan?.autoControl
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300"
+                  : "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
+              }`}
+            >
+              {fan?.autoControl ? "AUTO CURVE" : "MANUAL"}
+            </span>
+          </div>
         </div>
 
-        <div className="mt-4 flex items-center gap-4">
-          <AnimatedTurbineSvg speed={speed} color={accent.blade} isLight={isLight} />
-          <div className="grid flex-1 grid-cols-2 gap-2.5 text-xs">
-            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 dark:border-slate-800/80 dark:bg-slate-950/60">
-              <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+        {/* Turbine and Stats Grid */}
+        <div className="relative mt-4 flex items-center gap-4">
+          <AnimatedTurbineSvg
+            speed={speed}
+            rpm={rpm}
+            color={accent.blade}
+            side={colorSide}
+            isLight={isLight}
+          />
+
+          <div className="grid flex-1 grid-cols-2 gap-2 text-xs">
+            {/* Suhu Gauge */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 dark:border-slate-800/80 dark:bg-slate-950/70">
+              <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
                 <Thermometer className="h-3.5 w-3.5" /> Suhu
               </div>
-              <div className={`mt-0.5 text-lg font-bold ${accent.text}`}>
+              <div className={`mt-0.5 font-mono text-xl font-extrabold ${accent.text}`}>
                 {fan ? `${fan.temperature.toFixed(1)}°C` : "--"}
               </div>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 dark:border-slate-800/80 dark:bg-slate-950/60">
-              <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+
+            {/* RPM Gauge */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 dark:border-slate-800/80 dark:bg-slate-950/70">
+              <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
                 <Gauge className="h-3.5 w-3.5" /> RPM
               </div>
-              <div className="mt-0.5 text-lg font-bold text-slate-900 dark:text-white">
-                {fan ? fan.rpm : "--"}
+              <div className="mt-0.5 font-mono text-xl font-extrabold text-slate-900 dark:text-white">
+                {fan && fan.rpm > 0 ? fan.rpm : "--"}
               </div>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 dark:border-slate-800/80 dark:bg-slate-950/60">
-              <div className="text-slate-500 dark:text-slate-400">Aktual</div>
-              <div className="mt-0.5 font-semibold text-slate-800 dark:text-slate-100">
+
+            {/* Kecepatan Aktual */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 dark:border-slate-800/80 dark:bg-slate-950/70">
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">Kecepatan Aktual</div>
+              <div className="mt-0.5 font-mono text-sm font-bold text-slate-800 dark:text-slate-100">
                 {fan ? `${fan.currentSpeed.toFixed(1)}%` : "--"}
               </div>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 dark:border-slate-800/80 dark:bg-slate-950/60">
-              <div className="text-slate-500 dark:text-slate-400">Target EC</div>
-              <div className="mt-0.5 font-semibold text-cyan-700 dark:text-cyan-300">
+
+            {/* Target EC */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 dark:border-slate-800/80 dark:bg-slate-950/70">
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">Target EC</div>
+              <div className="mt-0.5 font-mono text-sm font-bold text-cyan-700 dark:text-cyan-300">
                 {fan ? `${fan.targetSpeed.toFixed(0)}%` : "--"}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="mt-3">
+        {/* RPM Speed Progress Bar (Gaming Meter) */}
+        <div className="relative mt-3.5">
+          <div className="flex justify-between text-[10px] font-mono text-slate-500 dark:text-slate-400 mb-1">
+            <span>Power Output ({rpmPct}%)</span>
+            <span>{rpm} / {maxRpm} RPM</span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800/80">
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{
+                width: `${rpmPct}%`,
+                background: `linear-gradient(90deg, ${accent.blade}88, ${accent.blade})`,
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Mini Sparkline Chart */}
+        <div className="relative mt-3">
           <MiniSparklineChart
             values={seriesValues}
             color={accent.blade}
@@ -263,15 +405,21 @@ export function FanControlStudio({ telemetry }: FanControlStudioProps) {
 
   return (
     <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition-colors duration-200 dark:border-slate-800/90 dark:bg-[#0d121c]/90 dark:shadow-xl">
+      {/* Top Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-800/80">
         <div className="flex items-center gap-2.5">
           <div className="rounded-xl border border-cyan-500/20 bg-cyan-50 p-2 text-cyan-600 dark:border-cyan-500/30 dark:bg-cyan-500/10 dark:text-cyan-400">
             <Fan className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">
-              Dual Fan Control & Temperature Sensor Studio
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                Dual Fan Control &amp; Temperature Studio
+              </h2>
+              <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cyan-700 dark:text-cyan-300">
+                AeroBlade 3D
+              </span>
+            </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Atur kipas kiri (CPU), kipas kanan (GPU), atau keduanya secara independen beserta sumber sensor suhu NBFC
             </p>
@@ -309,7 +457,8 @@ export function FanControlStudio({ telemetry }: FanControlStudioProps) {
           "CPU Cooling Fan",
           "KIRI / FAN #0",
           "cpu",
-          history.map((h) => h.cpuFanSpeed)
+          history.map((h) => h.cpuFanSpeed),
+          "left"
         )}
         {renderFanCard(
           rightFan,
@@ -317,14 +466,16 @@ export function FanControlStudio({ telemetry }: FanControlStudioProps) {
           "GPU Cooling Fan",
           "KANAN / FAN #1",
           "gpu",
-          history.map((h) => h.gpuFanSpeed)
+          history.map((h) => h.gpuFanSpeed),
+          "right"
         )}
       </div>
 
-      {/* Speed & Mode Controls */}
+      {/* Speed & Mode Controls (Gaming Cockpit Bar) */}
       <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800/80 dark:bg-slate-950/60">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
+            {/* Auto Curve Preset */}
             <button
               type="button"
               disabled={fanMutation.isPending}
@@ -334,6 +485,7 @@ export function FanControlStudio({ telemetry }: FanControlStudioProps) {
               <Check className="h-3.5 w-3.5" /> Auto Curve
             </button>
 
+            {/* Stepped Presets */}
             {[
               { label: "Silent 35%", speed: 35 },
               { label: "Balanced 60%", speed: 60 },
@@ -357,6 +509,7 @@ export function FanControlStudio({ telemetry }: FanControlStudioProps) {
               </button>
             ))}
 
+            {/* Max Turbo Preset with Pulsing Crimson Glow */}
             <button
               type="button"
               disabled={fanMutation.isPending}
@@ -364,30 +517,31 @@ export function FanControlStudio({ telemetry }: FanControlStudioProps) {
                 setDraftFanSpeed(100);
                 fanMutation.mutate({ target: fanTarget, mode: "max" });
               }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-800 shadow-2xs transition hover:bg-rose-100 disabled:opacity-50 dark:border-rose-500/50 dark:bg-rose-500/15 dark:text-rose-200 dark:hover:bg-rose-500/25"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-rose-400 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-800 shadow-sm transition hover:bg-rose-100 disabled:opacity-50 dark:border-rose-500/70 dark:bg-rose-500/20 dark:text-rose-200 dark:hover:bg-rose-500/30 ring-1 ring-rose-500/30"
             >
-              <Zap className="h-3.5 w-3.5" /> Max Turbo 100%
+              <Zap className="h-3.5 w-3.5 animate-pulse text-rose-500 dark:text-rose-400" /> Max Turbo 100%
             </button>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <span className="text-xs text-slate-500 dark:text-slate-400">
-              Target:{" "}
+              Target Aktif:{" "}
               <strong className="text-cyan-700 dark:text-cyan-300">
                 {fanTarget === "cpu"
-                  ? "Kipas Kiri"
+                  ? "Kipas Kiri (CPU)"
                   : fanTarget === "gpu"
-                    ? "Kipas Kanan"
-                    : "Keduanya"}
+                    ? "Kipas Kanan (GPU)"
+                    : "Keduanya (Sync)"}
               </strong>
             </span>
           </div>
         </div>
 
+        {/* Custom Speed Slider */}
         <div className="mt-4 flex flex-wrap items-center gap-4">
           <div className="flex-1 min-w-[220px]">
             <div className="mb-1 flex justify-between text-xs">
-              <span className="text-slate-500 dark:text-slate-400">Kecepatan Manual Custom</span>
+              <span className="text-slate-500 dark:text-slate-400">Kecepatan Manual Kustom</span>
               <span className="font-mono font-bold text-cyan-700 dark:text-cyan-300">{draftFanSpeed}%</span>
             </div>
             <input
@@ -489,7 +643,7 @@ export function FanControlStudio({ telemetry }: FanControlStudioProps) {
                   <div className="flex items-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200">
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
                     <span>
-                      <code>nvidia-ml</code> sedang <code>none</code> (dGPU sleep di mode Hybrid). Akan diterapkan dengan <code>--force</code>.
+                      <code>nvidia-ml</code> sedang <code>none</code> (dGPU sleep di mode Hybrid/Integrated).
                     </span>
                   </div>
                 )}
@@ -498,8 +652,8 @@ export function FanControlStudio({ telemetry }: FanControlStudioProps) {
                   <span className="text-[11px] text-slate-500 dark:text-slate-400">
                     {availableMap.get(draft.sensor)?.active
                       ? `Sensor terdeteksi (${availableMap.get(draft.sensor)?.paths.length ?? 1} node)`
-                      : draft.sensor === "@CPU"
-                        ? "Mengikuti profil default config"
+                      : draft.sensor === "@CPU" || draft.sensor === "k10temp"
+                        ? "Sensor aktif (k10temp)"
                         : "Sensor custom / fallback"}
                   </span>
                   <button
@@ -526,4 +680,3 @@ export function FanControlStudio({ telemetry }: FanControlStudioProps) {
     </section>
   );
 }
-

@@ -178,6 +178,7 @@ export function VisualRgbKeyboard() {
   const profileMutation = useRgbProfileMutation();
 
   // Membaca pengaturan RGB yang tersimpan sebelumnya saat aplikasi pertama kali dimuat
+  // dan langsung terapkan ke hardware jika state sebelumnya adalah aktif (isOff === false)
   useEffect(() => {
     if (hasHydratedRgb || !profilesQuery.data) return;
     const current = profilesQuery.data.currentState;
@@ -208,9 +209,34 @@ export function VisualRgbKeyboard() {
             : undefined,
         });
       }
+
+      // 🔑 FIX: Jika state tersimpan menunjukkan RGB aktif (isOff=false),
+      // langsung kirim perintah ke hardware supaya lampu keyboard menyala
+      // sesuai pengaturan terakhir. Tanpa ini, UI menunjukkan aktif tapi
+      // hardware tidak mendapat perintah apapun saat pertama kali dimuat.
+      const shouldApplyToHw = !current.isOff && current.mode !== "off" && current.brightness > 0;
+      if (shouldApplyToHw) {
+        const resolvedZoneColorsList = resolvedZoneColors ?? [];
+        const primaryColor =
+          current.color ?? (resolvedZoneColorsList[0]
+            ? { r: resolvedZoneColorsList[0].r, g: resolvedZoneColorsList[0].g, b: resolvedZoneColorsList[0].b }
+            : { r: 0, g: 240, b: 255 });
+
+        rgbMutation.mutate({
+          mode: current.mode,
+          zone: current.zone ?? "all",
+          speed: current.speed ?? 4,
+          brightness: current.brightness,
+          direction: current.direction ?? 2,
+          color: primaryColor,
+          zoneColors: resolvedZoneColorsList,
+        });
+      }
+
       setHasHydratedRgb(true);
     }
-  }, [profilesQuery.data, hasHydratedRgb, applyLoadedRgbConfig, setLastActiveRgb]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profilesQuery.data, hasHydratedRgb]);
 
   const activeHex =
     selectedZone === "all" ? zoneColors[1] : zoneColors[selectedZone];

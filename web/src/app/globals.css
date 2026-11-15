@@ -61,6 +61,23 @@ body {
   animation-name: fan-spin;
   animation-timing-function: linear;
   animation-iteration-count: infinite;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+@keyframes fan-pulse-glow {
+  0%, 100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+}
+
+.animate-fan-pulse {
+  animation: fan-pulse-glow 1.6s ease-in-out infinite;
 }
 
 .animate-rgb-breath {
