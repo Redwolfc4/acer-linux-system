@@ -10,6 +10,7 @@ import {
   type BatteryControlRequest,
   type FanControlRequest,
   type FanSensorUpdateRequest,
+  type GitActionRequest,
   type GpuControlRequest,
   type RgbControlRequest,
   type RgbProfileAction,
@@ -235,6 +236,45 @@ export function useGpuMutation() {
     },
     onError: (err) => {
       showToast("error", err instanceof Error ? err.message : "Gagal mengganti mode GPU");
+    },
+  });
+}
+
+export function useGitActionMutation() {
+  const qc = useQueryClient();
+  const showToast = useAcerStore((s) => s.showToast);
+
+  return useMutation({
+    mutationFn: (body: GitActionRequest) =>
+      fetchJson<{ success: boolean }>("/api/git", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["git-overview"] });
+      let msg = "Aksi Git berhasil dijalankan!";
+      if (vars.action === "switchGlobalGh") {
+        msg = `Akun GitHub CLI global dialihkan ke: ${vars.username}`;
+      } else if (vars.action === "applyLocalPreset") {
+        msg = `Preset '${vars.alias}' berhasil diterapkan ke repository ini!`;
+      } else if (vars.action === "applyLocalAccount") {
+        msg = `Akun ${vars.username} (${vars.name}) diterapkan ke repository ini!`;
+      } else if (vars.action === "resetLocalAccount") {
+        msg = "Override akun lokal repo di-reset (kembali mengikuti Global)!";
+      } else if (vars.action === "switchGlobalAuthor") {
+        msg = `Global Git author berhasil diatur ke: ${vars.name} <${vars.email}>`;
+      } else if (vars.action === "savePreset") {
+        msg = `Preset '${vars.preset.alias}' berhasil disimpan ke accounts.conf!`;
+      } else if (vars.action === "deletePreset") {
+        msg = `Preset '${vars.alias}' berhasil dihapus!`;
+      }
+      showToast("success", msg);
+    },
+    onError: (err) => {
+      showToast(
+        "error",
+        err instanceof Error ? err.message : "Gagal memproses aksi Git/GitHub"
+      );
     },
   });
 }

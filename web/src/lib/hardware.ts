@@ -10,6 +10,7 @@ import {
   type FanSensorUpdateRequest,
   type FanSensorsResponse,
   type FanTelemetry,
+  type GitActionRequest,
   type GitOverviewResponse,
   type GpuControlRequest,
   type RgbControlRequest,
@@ -1129,10 +1130,24 @@ export async function controlGpu(input: GpuControlRequest): Promise<void> {
 }
 
 export async function getGitOverview(): Promise<GitOverviewResponse> {
-  const [ghRes, gitNameRes, gitEmailRes] = await Promise.all([
+  const isRepo = existsSync(path.join(PROJECT_ROOT, ".git"));
+
+  const [
+    ghRes,
+    gitNameRes,
+    gitEmailRes,
+    localNameRes,
+    localEmailRes,
+    localGhUserRes,
+    remoteUrlRes,
+  ] = await Promise.all([
     runCmd("gh", ["auth", "status"], 3000),
     runCmd("git", ["config", "--global", "user.name"], 2000),
     runCmd("git", ["config", "--global", "user.email"], 2000),
+    isRepo ? runCmd("git", ["config", "--local", "user.name"], 2000) : Promise.resolve({ ok: false, stdout: "", stderr: "" }),
+    isRepo ? runCmd("git", ["config", "--local", "user.email"], 2000) : Promise.resolve({ ok: false, stdout: "", stderr: "" }),
+    isRepo ? runCmd("git", ["config", "--local", "github.user"], 2000) : Promise.resolve({ ok: false, stdout: "", stderr: "" }),
+    isRepo ? runCmd("git", ["remote", "get-url", "origin"], 2000) : Promise.resolve({ ok: false, stdout: "", stderr: "" }),
   ]);
 
   const ghCombined = `${ghRes.stdout}\n${ghRes.stderr}`;
@@ -1157,13 +1172,14 @@ export async function getGitOverview(): Promise<GitOverviewResponse> {
   }
 
   const presets: GitOverviewResponse["presets"] = [];
+  // Prioritas: file di dalam proyek (configs/accounts.conf) lalu ~/.config/acer/accounts.conf
   const cfgCandidates = [
+    path.join(PROJECT_ROOT, "configs", "accounts.conf"),
     path.join(
       process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"),
       "acer",
       "accounts.conf"
     ),
-    path.join(PROJECT_ROOT, "configs", "accounts.conf"),
   ];
 
   for (const cfgPath of cfgCandidates) {
@@ -1174,17 +1190,25 @@ export async function getGitOverview(): Promise<GitOverviewResponse> {
         if (!clean) continue;
         const [alias, githubUsername, gitName, gitEmail] = clean.split("|");
         if (alias && githubUsername) {
-          presets.push({
-            alias: alias.trim(),
-            githubUsername: githubUsername.trim(),
-            gitName: (gitName ?? githubUsername).trim(),
-            gitEmail: (gitEmail ?? "").trim(),
-          });
+          const trimmedAlias = alias.trim();
+          if (!presets.some((p) => p.alias === trimmedAlias)) {
+            presets.push({
+              alias: trimmedAlias,
+              githubUsername: githubUsername.trim(),
+              gitName: (gitName ?? githubUsername).trim(),
+              gitEmail: (gitEmail ?? "").trim(),
+            });
+          }
         }
       }
-      break;
     }
   }
+
+  const localName = localNameRes.ok ? localNameRes.stdout.trim() : null;
+  const localEmail = localEmailRes.ok ? localEmailRes.stdout.trim() : null;
+  const localGhUser = localGhUserRes.ok ? localGhUserRes.stdout.trim() : null;
+  const remoteUrl = remoteUrlRes.ok ? remoteUrlRes.stdout.trim() : null;
+  const isOverridden = Boolean(localName || localEmail || localGhUser);
 
   return {
     ghAccounts,
@@ -1193,6 +1217,139 @@ export async function getGitOverview(): Promise<GitOverviewResponse> {
       name: gitNameRes.ok ? gitNameRes.stdout.trim() : "",
       email: gitEmailRes.ok ? gitEmailRes.stdout.trim() : "",
     },
+    localAuthor: {
+      isRepo,
+      name: localName,
+      email: localEmail,
+      githubUser: localGhUser,
+      remoteUrl,
+      isOverridden,
+    },
   };
+}
+
+export async function manageGitAction(action: GitActionRequest): Promise<void> {
+  const accountsFileProject = path.join(PROJECT_ROOT, "configs", "accounts.conf");
+  const accountsFileUser = path.join(
+    process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"),
+    "acer",
+    "accounts.conf"
+  );
+
+  switch (action.action) {
+    case "switchGlobalGh": {
+      const res = await runCmd("gh", ["auth", "switch", "--hostname", "github.com", "--user", action.username], 5000);
+      if (!res.ok) throw new Error(res.stderr || `Gagal beralih ke akun GitHub CLI: ${action.username}`);
+      break;
+    }
+    case "switchGlobalAuthor": {
+      await Promise.all([
+        runCmd("git", ["config", "--global", "user.name", action.name], 3000),
+        runCmd("git", ["config", "--global", "user.email", action.email], 3000),
+      ]);
+      break;
+    }
+    case "applyLocalAccount": {
+      await Promise.all([
+        runCmd("git", ["config", "--local", "user.name", action.name], 3000),
+        runCmd("git", ["config", "--local", "user.email", action.email], 3000),
+        runCmd("git", ["config", "--local", "github.user", action.username], 3000),
+      ]);
+      await runCmd("git", ["config", "--local", "--unset-all", "credential.helper"], 3000);
+      await runCmd("git", ["config", "--local", "credential.helper", ""], 3000);
+      await runCmd(
+        "git",
+        [
+          "config",
+          "--local",
+          "--add",
+          "credential.helper",
+          `!f() { test "$1" = get && echo "username=${action.username}" && echo "password=$(gh auth token -u ${action.username})"; }; f`,
+        ],
+        3000
+      );
+      const curRem = await runCmd("git", ["remote", "get-url", "origin"], 2000);
+      if (curRem.ok && curRem.stdout.includes("github.com")) {
+        const newUrl = curRem.stdout
+          .trim()
+          .replace(/(https:\/\/)([^@]+@)?github\.com\//, `$1${action.username}@github.com/`);
+        await runCmd("git", ["remote", "set-url", "origin", newUrl], 2000);
+      }
+      break;
+    }
+    case "applyLocalPreset": {
+      const overview = await getGitOverview();
+      const p = overview.presets.find(
+        (x) => x.alias.toLowerCase() === action.alias.toLowerCase()
+      );
+      if (!p) throw new Error(`Preset '${action.alias}' tidak ditemukan di accounts.conf`);
+      await manageGitAction({
+        action: "applyLocalAccount",
+        username: p.githubUsername,
+        name: p.gitName,
+        email: p.gitEmail,
+      });
+      break;
+    }
+    case "resetLocalAccount": {
+      await Promise.all([
+        runCmd("git", ["config", "--local", "--unset", "user.name"], 3000),
+        runCmd("git", ["config", "--local", "--unset", "user.email"], 3000),
+        runCmd("git", ["config", "--local", "--unset", "github.user"], 3000),
+        runCmd("git", ["config", "--local", "--unset-all", "credential.helper"], 3000),
+      ]);
+      const curRem = await runCmd("git", ["remote", "get-url", "origin"], 2000);
+      if (curRem.ok && curRem.stdout.includes("github.com")) {
+        const cleanUrl = curRem.stdout
+          .trim()
+          .replace(/(https:\/\/)([^@]+@)github\.com\//, "$1github.com/");
+        await runCmd("git", ["remote", "set-url", "origin", cleanUrl], 2000);
+      }
+      break;
+    }
+    case "savePreset": {
+      const filesToUpdate = [accountsFileProject, accountsFileUser];
+      const newEntry = `${action.preset.alias}|${action.preset.githubUsername}|${action.preset.gitName}|${action.preset.gitEmail}`;
+      for (const f of filesToUpdate) {
+        mkdirSync(path.dirname(f), { recursive: true });
+        const existing = existsSync(f) ? readFileSync(f, "utf8") : "";
+        const lines = existing.split("\n");
+        let found = false;
+        const updatedLines = lines.map((l) => {
+          const clean = l.split("#")[0].trim();
+          if (clean.startsWith(`${action.preset.alias}|`)) {
+            found = true;
+            return newEntry;
+          }
+          return l;
+        });
+        if (!found) {
+          updatedLines.push(newEntry);
+        }
+        writeFileSync(
+          f,
+          updatedLines
+            .filter((x, idx, arr) => !(idx === arr.length - 1 && x === ""))
+            .join("\n") + "\n",
+          "utf8"
+        );
+      }
+      break;
+    }
+    case "deletePreset": {
+      const filesToUpdate = [accountsFileProject, accountsFileUser];
+      for (const f of filesToUpdate) {
+        if (!existsSync(f)) continue;
+        const existing = readFileSync(f, "utf8");
+        const lines = existing.split("\n");
+        const filtered = lines.filter((l) => {
+          const clean = l.split("#")[0].trim();
+          return !clean.startsWith(`${action.alias}|`);
+        });
+        writeFileSync(f, filtered.join("\n"), "utf8");
+      }
+      break;
+    }
+  }
 }
 

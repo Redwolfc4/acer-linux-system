@@ -280,7 +280,55 @@ export const GitOverviewResponseSchema = z.object({
     name: z.string(),
     email: z.string(),
   }),
+  localAuthor: z.object({
+    isRepo: z.boolean(),
+    name: z.string().nullable(),
+    email: z.string().nullable(),
+    githubUser: z.string().nullable(),
+    remoteUrl: z.string().nullable(),
+    isOverridden: z.boolean(),
+  }),
 });
 
 export type GitOverviewResponse = z.infer<typeof GitOverviewResponseSchema>;
+
+export const GitActionRequestSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("switchGlobalGh"),
+    username: z.string().min(1),
+  }),
+  z.object({
+    action: z.literal("switchGlobalAuthor"),
+    name: z.string().min(1),
+    email: z.string().min(1),
+  }),
+  z.object({
+    action: z.literal("applyLocalAccount"),
+    username: z.string().min(1),
+    name: z.string().min(1),
+    email: z.string().min(1),
+  }),
+  z.object({
+    action: z.literal("applyLocalPreset"),
+    alias: z.string().min(1),
+  }),
+  z.object({
+    action: z.literal("resetLocalAccount"),
+  }),
+  z.object({
+    action: z.literal("savePreset"),
+    preset: z.object({
+      alias: z.string().min(1),
+      githubUsername: z.string().min(1),
+      gitName: z.string().min(1),
+      gitEmail: z.string().min(1),
+    }),
+  }),
+  z.object({
+    action: z.literal("deletePreset"),
+    alias: z.string().min(1),
+  }),
+]);
+
+export type GitActionRequest = z.infer<typeof GitActionRequestSchema>;
 
