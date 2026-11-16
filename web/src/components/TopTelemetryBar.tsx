@@ -160,7 +160,7 @@ export function TopTelemetryBar({
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${active
-                    ? "bg-cyan-50 text-cyan-800 ring-1 ring-cyan-500/40 shadow-xs dark:bg-gradient-to-r dark:from-cyan-500/20 dark:to-blue-500/20 dark:text-cyan-200 dark:ring-cyan-500/50 dark:shadow-cyan-500/10"
+                    ? "bg-cyan-600 text-white shadow-xs hover:bg-cyan-700 dark:bg-cyan-400 dark:text-slate-950 dark:font-bold dark:shadow-md dark:shadow-cyan-400/30 dark:hover:bg-cyan-300 ring-1 ring-cyan-600 dark:ring-cyan-300"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-200"
                   }`}
               >
